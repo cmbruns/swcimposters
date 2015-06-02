@@ -29,9 +29,12 @@ def InitGL(Width, Height):				# We call this right after our OpenGL window is cr
 	
 	glLightfv( GL_LIGHT1, GL_AMBIENT, GLfloat_4(0.2, .2, .2, 1.0) )
 	glLightfv(GL_LIGHT1, GL_DIFFUSE, GLfloat_3(.8,.8,.8))
-	glLightfv(GL_LIGHT1, GL_POSITION, GLfloat_4(-2,0,3,1) )
+	glLightfv(GL_LIGHT1, GL_POSITION, GLfloat_4(-2,5,3,1) )
+	glLightfv(GL_LIGHT1, GL_SPECULAR, GLfloat_3(.8,.8,.8) )
 	glColorMaterial(GL_FRONT, GL_DIFFUSE)
 	glEnable(GL_COLOR_MATERIAL)
+	glMaterialfv(GL_FRONT, GL_SPECULAR, GLfloat_4(0.8, 0.8, 0.8, 1.0) )
+	glMateriali(GL_FRONT, GL_SHININESS, 150)
 
 # The function called when our window is resized (which shouldn't happen if you enable fullscreen, below)
 def ReSizeGLScene(Width, Height):
@@ -83,12 +86,13 @@ def DrawGLScene():
 	glTranslatef(-0.8,0.0,0);             # Move Left
 	# drawTriangle()
 	glColor3f(0.8, 0.5, 0.2)
-	glutSolidSphere(1.0, 10, 10)
+	glutSolidSphere(1.0, 50, 50)
 	
 	glTranslatef( 1.6,0.0,0);             # Move Right
 	glColor3f(0.2, 0.5, 0.8)
+	# TODO - use as imposter
 	glutSolidCube(2.0)
-	drawTriangle()
+	# drawTriangle()
 	
 	#  since this is double buffered, swap the buffers to display what just got drawn. 
 	glutSwapBuffers()
