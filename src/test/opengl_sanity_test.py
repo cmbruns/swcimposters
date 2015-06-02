@@ -26,6 +26,12 @@ def InitGL(Width, Height):				# We call this right after our OpenGL window is cr
 	gluPerspective(45.0, float(Width)/float(Height), 0.1, 100.0)
 
 	glMatrixMode(GL_MODELVIEW)
+	
+	glLightfv( GL_LIGHT1, GL_AMBIENT, GLfloat_4(0.2, .2, .2, 1.0) )
+	glLightfv(GL_LIGHT1, GL_DIFFUSE, GLfloat_3(.8,.8,.8))
+	glLightfv(GL_LIGHT1, GL_POSITION, GLfloat_4(-2,0,3,1) )
+	glColorMaterial(GL_FRONT, GL_DIFFUSE)
+	glEnable(GL_COLOR_MATERIAL)
 
 # The function called when our window is resized (which shouldn't happen if you enable fullscreen, below)
 def ReSizeGLScene(Width, Height):
@@ -62,6 +68,11 @@ def drawCube():
 yrot = 0.00
 def DrawGLScene():
 	global yrot
+	
+	glEnable( GL_LIGHTING ) 
+	glEnable(GL_LIGHT1)
+	glDisable(GL_LIGHT0)
+	
 	# Clear The Screen And The Depth Buffer
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
 	
