@@ -29,7 +29,7 @@ class SimpleImposterViewer:
 			glMatrixMode(GL_PROJECTION)
 			glLoadIdentity()					# Reset The Projection Matrix
 												# Calculate The Aspect Ratio Of The Window
-			gluPerspective(45.0, float(Width)/float(Height), 0.1, 100.0)
+			gluPerspective(45.0, float(Width)/float(Height), 0.1, 20.0)
 		
 			glMatrixMode(GL_MODELVIEW)
 			
