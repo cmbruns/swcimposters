@@ -33,14 +33,78 @@ class SimpleImposterViewer:
 		
 			glMatrixMode(GL_MODELVIEW)
 			
-			glLightfv( GL_LIGHT1, GL_AMBIENT, GLfloat_4(0.2, .2, .2, 1.0) )
+			glLightfv(GL_LIGHT1, GL_POSITION, GLfloat_4(-5,3,3,1) )
+			glLightfv( GL_LIGHT1, GL_AMBIENT, GLfloat_4(0.2, 0.2, .2, 1.0) )
+			# glLightfv(GL_LIGHT1, GL_DIFFUSE, GLfloat_3(0,0,0) )
+			# glLightfv(GL_LIGHT1, GL_SPECULAR, GLfloat_3(0,0,0) )
 			glLightfv(GL_LIGHT1, GL_DIFFUSE, GLfloat_3(.8,.8,.8))
-			glLightfv(GL_LIGHT1, GL_POSITION, GLfloat_4(-2,2,3,1) )
 			glLightfv(GL_LIGHT1, GL_SPECULAR, GLfloat_3(.8,.8,.8) )
 			glColorMaterial(GL_FRONT, GL_DIFFUSE)
 			glEnable(GL_COLOR_MATERIAL)
 			glMaterialfv(GL_FRONT, GL_SPECULAR, GLfloat_4(0.8, 0.8, 0.8, 1.0) )
 			glMateriali(GL_FRONT, GL_SHININESS, 150)
+			
+			# Read utility functions from file
+			with open ("../glsl/imposter_fns_frag.glsl", "r") as myfile:
+				frag_fns_str = myfile.read()
+				# print frag_fns_str
+				frag_fns = shaders.compileShader(frag_fns_str, GL_FRAGMENT_SHADER)
+				
+			
+			self.green_shader = shaders.compileProgram(
+				shaders.compileShader(
+						"""
+						#version 120
+						
+						void main() { 
+							gl_Position = gl_ModelViewProjectionMatrix * gl_Vertex;
+						}
+						""", GL_VERTEX_SHADER), 
+				shaders.compileShader(frag_fns_str, GL_FRAGMENT_SHADER),
+				shaders.compileShader(
+						"""
+						#version 120
+						
+						void set_green_color();
+						
+						void main() { 
+							set_green_color();
+						}
+						""", GL_FRAGMENT_SHADER)
+			)
+			
+			self.light_rig_shader = shaders.compileProgram(
+				shaders.compileShader(
+						"""
+						#version 120
+						
+						varying vec3 normal;
+						varying vec4 pos1;
+						varying vec3 surface_color;
+						
+						void main() { 
+							pos1 = gl_ModelViewProjectionMatrix * gl_Vertex;
+							normal = normalize(gl_NormalMatrix * gl_Normal);
+							gl_Position = pos1;
+							surface_color = gl_Color.rgb;
+						}
+						""", GL_VERTEX_SHADER), 
+				shaders.compileShader(frag_fns_str, GL_FRAGMENT_SHADER),
+				shaders.compileShader(
+						"""
+						#version 120
+						
+						varying vec3 normal;
+						varying vec4 pos1;
+						varying vec3 surface_color;
+						
+						vec3 light_rig(vec4 pos, vec3 normal, vec3 color);
+						
+						void main() { 
+							gl_FragColor = vec4(light_rig(pos1, normalize(normal), surface_color), 1);
+						}
+						""", GL_FRAGMENT_SHADER)
+			)
 		
 		# The function called when our window is resized (which shouldn't happen if you enable fullscreen, below)
 		def ReSizeGLScene(self, Width, Height):
@@ -77,16 +141,29 @@ class SimpleImposterViewer:
 			glTranslatef(0.0,0.0,-6.0);             # MoveInto The Screen
 			glRotatef(self.yrot, 0.0,1.0,0.0);             # Rotate The Pyramid On It's Y Axis
 			
-			glTranslatef(-0.8,0.0,0);             # Move Left
+			glTranslatef(-1.6,0.0,0);             # Move Left
 			# drawTriangle()
 			glColor3f(0.8, 0.5, 0.2)
-			glutSolidSphere(1.0, 50, 50)
+			shaders.glUseProgram(0)
+			glutSolidSphere(1.0, 150, 150)
+			shaders.glUseProgram(0)
 			
 			glTranslatef( 1.6,0.0,0);             # Move Right
 			glColor3f(0.2, 0.5, 0.8)
 			# TODO - use as imposter
+			# shaders.glUseProgram(self.green_shader)
 			glutSolidCube(2.0)
 			# drawTriangle()
+			shaders.glUseProgram(0)
+			
+			glTranslatef( 1.6, 0.0, 0);             # Move Right
+			glColor3f(0.2, 0.8, 0.5)
+			# TODO - use as imposter
+			shaders.glUseProgram(self.light_rig_shader)
+			glColor3f(0.8, 0.5, 0.2)
+			glutSolidSphere(1.0, 150, 150)
+			# drawTriangle()
+			shaders.glUseProgram(0)
 			
 			#  since this is double buffered, swap the buffers to display what just got drawn. 
 			glutSwapBuffers()
