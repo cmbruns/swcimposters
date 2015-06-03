@@ -7,39 +7,40 @@
  * license terms ( http://license.janelia.org/license/jfrc_copyright_1_1.html ).
  */
 
-void set_green_color() { 
-    gl_FragColor = vec4( 0, 1, 0, 1 ); 
+// SPHERES
+// Methods for ray casting sphere geometry from imposter geometry
+
+// defined in imposter_fns.glsl
+vec2 sphere_linear_coeffs(vec3 center, float radius, vec3 pos);
+
+// Final non-linear computation, to be performed in fragment shader
+vec3 sphere_surface_from_coeffs(vec3 pos, vec2 pc_c2) {
+    // set up quadratic formula for sphere surface ray casting
+    float b = pc_c2.x;
+    float a2 = dot(pos, pos);
+    float c2 = pc_c2.y;
+    float discriminant = b*b - a2*c2;
+    if (discriminant <= 0)
+        discard; // Point does not intersect sphere
+    float left = b / a2;
+    float right = sqrt(discriminant) / a2;
+    float alpha1 = left - right; // near surface of sphere
+    // float alpha2 = left + right; // far/back surface of sphere
+    return alpha1 * pos;
 }
 
-// Hard coded light system, just for testing, 
-// should be same as in CPU host program, for comparison
-vec3 light_rig(vec4 pos, vec3 normal, vec3 surface_color) {
-    const vec3 ambient_light = vec3(0.2, 0.2, 0.2);
-    const vec3 diffuse_light = vec3(0.8, 0.8, 0.8);
-    const vec3 specular_light = vec3(0.8, 0.8, 0.8);
-    const vec4 light_pos = vec4(-5, 3, 3, 0); 
-    // const vec3 surface_color = vec3(1, 0.5, 1);
+// Pedagogical method, which does full ray casting of sphere imposter.
+// In practice, this method is divided into vertex and fragment components
+// center: center of sphere in camera frame
+// pos: location of imposter geometry in camera frame
+vec3 sphere_surface_from_imposter_pos(vec3 center, float radius, vec3 pos) {
+    vec2 pc_c2 = sphere_linear_coeffs(center, radius, pos); // should run in vertex shader
+    vec3 s = sphere_surface_from_coeffs(pos, pc_c2); // should run in fragment shader
+    // vec3 normal = 1.0/radius * (s - center);
+    return s;
+}
 
-	vec3 surfaceToLight = normalize(light_pos.xyz); //  - (pos / pos.w).xyz);
-	
-	float diffuseCoefficient = max(0.0, dot(normal, surfaceToLight));
-	vec3 diffuse = diffuseCoefficient * surface_color * diffuse_light;
-
-    vec3 ambient = ambient_light * surface_color;
-    
-	vec3 surfaceToCamera = normalize(-pos.xyz); //also a unit vector	
-	// Use Blinn-Phong specular model, to match fixed-function pipeline result (at least on nvidia)
-	vec3 H = normalize(surfaceToLight + surfaceToCamera);
-	float nDotH = max(0.0, dot(normal, H));
-	float specularCoefficient = pow(nDotH, 150);
-	
-	vec3 specular = specularCoefficient * specular_light;
-	
-    
-
-    // return diffuse + ambient + specularComponent;
-    // return (0.5 * normal + vec3(0.5, 0.5, 0.5)); // normal map, for debugging
-    // return reflectionVector;
-    // return 0.5 * surfaceToLight + vec3(0.5, 0.5, 0.5);
-    return diffuse + specular + ambient;
+/* simple function for debugging */
+void set_green_color() { 
+    gl_FragColor = vec4( 0, 1, 0, 1 ); 
 }

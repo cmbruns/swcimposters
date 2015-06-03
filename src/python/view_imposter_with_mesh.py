@@ -70,10 +70,11 @@ class SimpleImposterViewer:
 			# Read utility functions from file
 			with open ("../glsl/imposter_fns_frag.glsl", "r") as myfile:
 				frag_fns_str = myfile.read()
-				# print frag_fns_str
-				frag_fns = shaders.compileShader(frag_fns_str, GL_FRAGMENT_SHADER)
+			with open ("../glsl/imposter_fns.glsl", "r") as myfile:
+				glsl_fns_str = myfile.read()
+				print glsl_fns_str
 				
-			
+			# Create a test shader for debugging, which just colors everything green.
 			self.green_shader = shaders.compileProgram(
 				shaders.compileShader(
 						"""
@@ -83,6 +84,7 @@ class SimpleImposterViewer:
 							gl_Position = gl_ModelViewProjectionMatrix * gl_Vertex;
 						}
 						""", GL_VERTEX_SHADER), 
+				shaders.compileShader(glsl_fns_str, GL_FRAGMENT_SHADER),
 				shaders.compileShader(frag_fns_str, GL_FRAGMENT_SHADER),
 				shaders.compileShader(
 						"""
@@ -95,7 +97,8 @@ class SimpleImposterViewer:
 						}
 						""", GL_FRAGMENT_SHADER)
 			)
-			
+
+			# Create another shader that illuminates standard mesh geometry with 			
 			self.light_rig_shader = shaders.compileProgram(
 				shaders.compileShader(
 						"""
@@ -112,6 +115,7 @@ class SimpleImposterViewer:
 							surface_color = gl_Color.rgb;
 						}
 						""", GL_VERTEX_SHADER), 
+				shaders.compileShader(glsl_fns_str, GL_FRAGMENT_SHADER),
 				shaders.compileShader(frag_fns_str, GL_FRAGMENT_SHADER),
 				shaders.compileShader(
 						"""
@@ -125,11 +129,64 @@ class SimpleImposterViewer:
 						
 						void main() {
 						    vec3 s2 = surface_color;
-							gl_FragColor = vec4(light_rig(pos1, normalize(normal), s2), 1);
+							gl_FragColor = vec4(
+								light_rig(pos1, normalize(normal), surface_color),
+								1);
 						}
 						""", GL_FRAGMENT_SHADER)
 			)
 		
+			# Create shader for sphere imposters		
+			self.sphere_shader = shaders.compileProgram(
+				shaders.compileShader(glsl_fns_str, GL_VERTEX_SHADER),
+				shaders.compileShader(
+						"""
+						#version 120
+						
+						varying vec4 pos1;
+						varying vec4 surface_color;
+						
+						varying float radius;
+						varying vec2 pc_c2;
+						varying vec3 center;
+						
+						// defined in imposter_fns.glsl
+						vec2 sphere_linear_coeffs(vec3 center, float radius, vec3 pos);
+
+						void main() { 
+							pos1 = gl_ModelViewMatrix * gl_Vertex;
+							gl_Position = gl_ProjectionMatrix * pos1;
+							surface_color = gl_Color.rgba;
+							
+							// TODO - hard coding sphere parameters for the moment...
+							radius = 1.0; // TODO - test non-1.0 values
+							center = vec3(0, 0, -6);
+							pc_c2 = sphere_linear_coeffs(center, radius, pos1.xyz/pos1.w);
+						}
+						""", GL_VERTEX_SHADER), 
+				shaders.compileShader(glsl_fns_str, GL_FRAGMENT_SHADER),
+				shaders.compileShader(frag_fns_str, GL_FRAGMENT_SHADER),
+				shaders.compileShader(
+						"""
+						#version 120
+
+						varying vec4 pos1;
+						varying vec4 surface_color;
+						varying float radius;
+						varying vec3 center;
+						varying vec2 pc_c2;
+						
+						// defined in imposter_fns.glsl
+						vec3 sphere_surface_from_coeffs(vec3 pos, vec2 pc_c2);
+						
+						void main() {
+							vec3 s = sphere_surface_from_coeffs(pos1.xyz/pos1.w, pc_c2);
+							vec3 normal = 1.0 / radius * (s - center);
+							gl_FragColor = surface_color;
+						}
+						""", GL_FRAGMENT_SHADER)
+			)
+			
 		# The function called when our window is resized (which shouldn't happen if you enable fullscreen, below)
 		def ReSizeGLScene(self, Width, Height):
 			if Height == 0:						# Prevent A Divide By Zero If The Window Is Too Small 
@@ -177,7 +234,7 @@ class SimpleImposterViewer:
 			glTranslatef( 1.6,0.0,0);             # Move Right
 			glColor3f(0.2, 0.5, 0.8)
 			# TODO - use as imposter
-			# shaders.glUseProgram(self.green_shader)
+			shaders.glUseProgram(self.sphere_shader)
 			glutSolidCube(2.0)
 			# drawTriangle()
 			shaders.glUseProgram(0)
