@@ -1,5 +1,33 @@
 #!/bin/env python
 
+# Author Christopher M. Bruns
+
+# Copyright 2012 HHMI. All rights reserved.
+# 
+# Redistribution and use in source and binary forms, with or without 
+# modification, are permitted provided that the following conditions are met:
+# 
+#     Redistributions of source code must retain the above copyright notice, 
+#     this list of conditions and the following disclaimer.
+#     Redistributions in binary form must reproduce the above copyright notice, 
+#     this list of conditions and the following disclaimer in the documentation 
+#     and/or other materials provided with the distribution.
+#     Neither the name of HHMI nor the names of its contributors may be used to 
+#     endorse or promote products derived from this software without specific 
+#     prior written permission.
+# 
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" 
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE 
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE 
+# ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE 
+# LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR 
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF 
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS 
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN 
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) 
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
+# POSSIBILITY OF SUCH DAMAGE.
+
 from OpenGL.GL import *
 from OpenGL.GLUT import *
 from OpenGL.GLU import *
@@ -17,6 +45,8 @@ class SimpleImposterViewer:
 			self.yrot = 0.0
 			# Number of the glut window.
 			self.window = 0
+			self.ambientOnly = False
+			self.diffuseOnly = False
 			
 		# A general OpenGL initialization function.  Sets all of the initial parameters. 
 		def InitGL(self, Width, Height):				# We call this right after our OpenGL window is created.
@@ -33,16 +63,30 @@ class SimpleImposterViewer:
 		
 			glMatrixMode(GL_MODELVIEW)
 			
-			glLightfv(GL_LIGHT1, GL_POSITION, GLfloat_4(-5,3,3,1) )
-			glLightfv( GL_LIGHT1, GL_AMBIENT, GLfloat_4(0.2, 0.2, .2, 1.0) )
-			# glLightfv(GL_LIGHT1, GL_DIFFUSE, GLfloat_3(0,0,0) )
-			# glLightfv(GL_LIGHT1, GL_SPECULAR, GLfloat_3(0,0,0) )
-			glLightfv(GL_LIGHT1, GL_DIFFUSE, GLfloat_3(.8,.8,.8))
-			glLightfv(GL_LIGHT1, GL_SPECULAR, GLfloat_3(.8,.8,.8) )
-			glColorMaterial(GL_FRONT, GL_DIFFUSE)
+			glLightfv(GL_LIGHT1, GL_POSITION, GLfloat_4(-5,3,3,0) )
+			# glLightfv(GL_LIGHT1, GL_POSITION, GLfloat_4(0, 0, 10, 0) )
+			
+			glLightfv( GL_LIGHT1, GL_AMBIENT, GLfloat_4(0.5,1,0.2, 1.0) )
+			glColorMaterial(GL_FRONT, GL_AMBIENT_AND_DIFFUSE)
 			glEnable(GL_COLOR_MATERIAL)
-			glMaterialfv(GL_FRONT, GL_SPECULAR, GLfloat_4(0.8, 0.8, 0.8, 1.0) )
-			glMateriali(GL_FRONT, GL_SHININESS, 150)
+			if self.diffuseOnly:
+				glLightfv( GL_LIGHT1, GL_AMBIENT, GLfloat_4(0,0,0,0) )
+				glLightfv(GL_LIGHT1, GL_DIFFUSE, GLfloat_3(.8,.8,.8))
+				glLightfv(GL_LIGHT1, GL_SPECULAR, GLfloat_3(0,0,0) )
+				glMaterialfv(GL_FRONT, GL_SPECULAR, GLfloat_4(0,0,0) )
+				glMateriali(GL_FRONT, GL_SHININESS, 150)				
+			elif self.ambientOnly:
+				glLightfv( GL_LIGHT1, GL_AMBIENT, GLfloat_4(0.2,0.2,0.2, 1.0) )
+				glLightfv(GL_LIGHT1, GL_DIFFUSE, GLfloat_3(0,0,0) )
+				glLightfv(GL_LIGHT1, GL_SPECULAR, GLfloat_3(0,0,0) )
+				glMaterialfv(GL_FRONT, GL_SPECULAR, GLfloat_4(0,0,0) )
+				glMateriali(GL_FRONT, GL_SHININESS, 150)				
+			else:
+				glLightfv( GL_LIGHT1, GL_AMBIENT, GLfloat_4(0.2,0.2,0.2,0) )
+				glLightfv(GL_LIGHT1, GL_DIFFUSE, GLfloat_3(.8,.8,.8))
+				glLightfv(GL_LIGHT1, GL_SPECULAR, GLfloat_3(.8,.8,.8) )
+				glMaterialfv(GL_FRONT, GL_SPECULAR, GLfloat_4(0.8, 0.8, 0.8, 1.0) )
+				glMateriali(GL_FRONT, GL_SHININESS, 150)
 			
 			# Read utility functions from file
 			with open ("../glsl/imposter_fns_frag.glsl", "r") as myfile:
@@ -83,9 +127,9 @@ class SimpleImposterViewer:
 						varying vec3 surface_color;
 						
 						void main() { 
-							pos1 = gl_ModelViewProjectionMatrix * gl_Vertex;
+							pos1 = gl_ModelViewMatrix * gl_Vertex;
 							normal = normalize(gl_NormalMatrix * gl_Normal);
-							gl_Position = pos1;
+							gl_Position = gl_ProjectionMatrix * pos1;
 							surface_color = gl_Color.rgb;
 						}
 						""", GL_VERTEX_SHADER), 
@@ -100,8 +144,9 @@ class SimpleImposterViewer:
 						
 						vec3 light_rig(vec4 pos, vec3 normal, vec3 color);
 						
-						void main() { 
-							gl_FragColor = vec4(light_rig(pos1, normalize(normal), surface_color), 1);
+						void main() {
+						    vec3 s2 = surface_color;
+							gl_FragColor = vec4(light_rig(pos1, normalize(normal), s2), 1);
 						}
 						""", GL_FRAGMENT_SHADER)
 			)
@@ -141,13 +186,15 @@ class SimpleImposterViewer:
 			glTranslatef(0.0,0.0,-6.0);             # MoveInto The Screen
 			glRotatef(self.yrot, 0.0,1.0,0.0);             # Rotate The Pyramid On It's Y Axis
 			
+			# Leftmost sphere is shaded using the fixed function pipeline
 			glTranslatef(-1.6,0.0,0);             # Move Left
 			# drawTriangle()
 			glColor3f(0.8, 0.5, 0.2)
 			shaders.glUseProgram(0)
 			glutSolidSphere(1.0, 150, 150)
 			shaders.glUseProgram(0)
-			
+
+			# Middle sphere is (eventually) an imposter			
 			glTranslatef( 1.6,0.0,0);             # Move Right
 			glColor3f(0.2, 0.5, 0.8)
 			# TODO - use as imposter
@@ -156,12 +203,13 @@ class SimpleImposterViewer:
 			# drawTriangle()
 			shaders.glUseProgram(0)
 			
+			# Right sphere is a standard mesh, shaded with GLSL
 			glTranslatef( 1.6, 0.0, 0);             # Move Right
 			glColor3f(0.2, 0.8, 0.5)
 			# TODO - use as imposter
 			shaders.glUseProgram(self.light_rig_shader)
 			glColor3f(0.8, 0.5, 0.2)
-			glutSolidSphere(1.0, 150, 150)
+			glutSolidSphere(1.0, 40, 40)
 			# drawTriangle()
 			shaders.glUseProgram(0)
 			
