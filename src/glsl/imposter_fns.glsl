@@ -10,13 +10,16 @@
 // SPHERES
 // Methods for ray casting sphere geometry from imposter geometry
 
-// Compute linear coefficients that could be computed in vertex/geometry shader, to ease burden on fragment shader
+// First phase of sphere imposter shading: Compute linear coefficients in vertex shader,
+// to ease burden on fragment shader
 vec2 sphere_linear_coeffs(vec3 center, float radius, vec3 pos) {
     float pc = dot(pos, center);
     float c2 = dot(center, center) - radius * radius;
     return vec2(pc, c2);
 }
 
+// Second phase of sphere imposter shading: Compute nonlinear coefficients
+// in fragment shader, including discriminant used to reject fragments.
 vec2 sphere_nonlinear_coeffs(vec3 pos, vec2 pc_c2) {
     // set up quadratic formula for sphere surface ray casting
     float b = pc_c2.x;
@@ -26,9 +29,10 @@ vec2 sphere_nonlinear_coeffs(vec3 pos, vec2 pc_c2) {
     return vec2(a2, discriminant);
 }
 
-// Final non-linear computation, to be performed in fragment shader
+// Third and final phase of sphere imposter shading: Compute sphere
+// surface XYZ coordinates in fragment shader.
 vec3 sphere_surface_from_coeffs(vec3 pos, vec2 pc_c2, vec2 a2_d) {
-    float discriminant = a2_d.y;
+    float discriminant = a2_d.y; // Negative values should be discarded.
     float a2 = a2_d.x;
     float b = pc_c2.x;
     float left = b / a2;
@@ -38,8 +42,8 @@ vec3 sphere_surface_from_coeffs(vec3 pos, vec2 pc_c2, vec2 a2_d) {
     return alpha1 * pos;
 }
 
-// Hard coded light system, just for testing, 
-// should be same as in CPU host program, for comparison
+// Hard coded light system, just for testing.
+// Light parameters should be same ones in CPU host program, for comparison
 vec3 light_rig(vec4 pos, vec3 normal, vec3 surface_color) {
     const vec3 ambient_light = vec3(0.2, 0.2, 0.2);
     const vec3 diffuse_light = vec3(0.8, 0.8, 0.8);
