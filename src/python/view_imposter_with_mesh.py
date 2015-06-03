@@ -72,7 +72,6 @@ class SimpleImposterViewer:
 				frag_fns_str = myfile.read()
 			with open ("../glsl/imposter_fns.glsl", "r") as myfile:
 				glsl_fns_str = myfile.read()
-				print glsl_fns_str
 				
 			# Create a test shader for debugging, which just colors everything green.
 			self.green_shader = shaders.compileProgram(
@@ -84,7 +83,6 @@ class SimpleImposterViewer:
 							gl_Position = gl_ModelViewProjectionMatrix * gl_Vertex;
 						}
 						""", GL_VERTEX_SHADER), 
-				shaders.compileShader(glsl_fns_str, GL_FRAGMENT_SHADER),
 				shaders.compileShader(frag_fns_str, GL_FRAGMENT_SHADER),
 				shaders.compileShader(
 						"""
@@ -116,7 +114,6 @@ class SimpleImposterViewer:
 						}
 						""", GL_VERTEX_SHADER), 
 				shaders.compileShader(glsl_fns_str, GL_FRAGMENT_SHADER),
-				shaders.compileShader(frag_fns_str, GL_FRAGMENT_SHADER),
 				shaders.compileShader(
 						"""
 						#version 120
@@ -165,7 +162,6 @@ class SimpleImposterViewer:
 						}
 						""", GL_VERTEX_SHADER), 
 				shaders.compileShader(glsl_fns_str, GL_FRAGMENT_SHADER),
-				shaders.compileShader(frag_fns_str, GL_FRAGMENT_SHADER),
 				shaders.compileShader(
 						"""
 						#version 120
@@ -177,12 +173,21 @@ class SimpleImposterViewer:
 						varying vec2 pc_c2;
 						
 						// defined in imposter_fns.glsl
-						vec3 sphere_surface_from_coeffs(vec3 pos, vec2 pc_c2);
+						vec2 sphere_nonlinear_coeffs(vec3 pos, vec2 pc_c2);
+						vec3 sphere_surface_from_coeffs(vec3 pos, vec2 pc_c2, vec2 a2_d);
+						vec3 light_rig(vec4 pos, vec3 normal, vec3 color);
 						
 						void main() {
-							vec3 s = sphere_surface_from_coeffs(pos1.xyz/pos1.w, pc_c2);
+							vec3 pos = pos1.xyz/pos1.w;
+							vec2 a2_d = sphere_nonlinear_coeffs(pos, pc_c2);
+							if (a2_d.y <= 0)
+								discard; // Point does not intersect sphere
+							vec3 s = sphere_surface_from_coeffs(pos, pc_c2, a2_d);
 							vec3 normal = 1.0 / radius * (s - center);
-							gl_FragColor = surface_color;
+							// gl_FragColor = vec4(normal, 1);
+							gl_FragColor = vec4(
+								light_rig(vec4(s, 1), normal, surface_color.rgb),
+								1);
 						}
 						""", GL_FRAGMENT_SHADER)
 			)
@@ -227,7 +232,7 @@ class SimpleImposterViewer:
 			# drawTriangle()
 			glColor3f(0.8, 0.5, 0.2)
 			shaders.glUseProgram(0)
-			glutSolidSphere(1.0, 150, 150)
+			glutSolidSphere(1.0, 20, 20)
 			shaders.glUseProgram(0)
 
 			# Middle sphere is (eventually) an imposter			
@@ -245,7 +250,7 @@ class SimpleImposterViewer:
 			# TODO - use as imposter
 			shaders.glUseProgram(self.light_rig_shader)
 			glColor3f(0.8, 0.5, 0.2)
-			glutSolidSphere(1.0, 40, 40)
+			glutSolidSphere(1.0, 20, 20)
 			# drawTriangle()
 			shaders.glUseProgram(0)
 			

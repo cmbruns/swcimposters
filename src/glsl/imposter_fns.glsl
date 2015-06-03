@@ -17,6 +17,27 @@ vec2 sphere_linear_coeffs(vec3 center, float radius, vec3 pos) {
     return vec2(pc, c2);
 }
 
+vec2 sphere_nonlinear_coeffs(vec3 pos, vec2 pc_c2) {
+    // set up quadratic formula for sphere surface ray casting
+    float b = pc_c2.x;
+    float a2 = dot(pos, pos);
+    float c2 = pc_c2.y;
+    float discriminant = b*b - a2*c2;
+    return vec2(a2, discriminant);
+}
+
+// Final non-linear computation, to be performed in fragment shader
+vec3 sphere_surface_from_coeffs(vec3 pos, vec2 pc_c2, vec2 a2_d) {
+    float discriminant = a2_d.y;
+    float a2 = a2_d.x;
+    float b = pc_c2.x;
+    float left = b / a2;
+    float right = sqrt(discriminant) / a2;
+    float alpha1 = left - right; // near surface of sphere
+    // float alpha2 = left + right; // far/back surface of sphere
+    return alpha1 * pos;
+}
+
 // Hard coded light system, just for testing, 
 // should be same as in CPU host program, for comparison
 vec3 light_rig(vec4 pos, vec3 normal, vec3 surface_color) {
