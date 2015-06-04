@@ -51,21 +51,21 @@ vec3 light_rig(vec4 pos, vec3 normal, vec3 surface_color) {
     const vec4 light_pos = vec4(-5, 3, 3, 0); 
     // const vec3 surface_color = vec3(1, 0.5, 1);
 
-	vec3 surfaceToLight = normalize(light_pos.xyz); //  - (pos / pos.w).xyz);
-	
-	float diffuseCoefficient = max(0.0, dot(normal, surfaceToLight));
-	vec3 diffuse = diffuseCoefficient * surface_color * diffuse_light;
+    vec3 surfaceToLight = normalize(light_pos.xyz); //  - (pos / pos.w).xyz);
+    
+    float diffuseCoefficient = max(0.0, dot(normal, surfaceToLight));
+    vec3 diffuse = diffuseCoefficient * surface_color * diffuse_light;
 
     vec3 ambient = ambient_light * surface_color;
     
-	vec3 surfaceToCamera = normalize(-pos.xyz); //also a unit vector	
-	// Use Blinn-Phong specular model, to match fixed-function pipeline result (at least on nvidia)
-	vec3 H = normalize(surfaceToLight + surfaceToCamera);
-	float nDotH = max(0.0, dot(normal, H));
-	float specularCoefficient = pow(nDotH, 150);
-	vec3 specular = specularCoefficient * specular_light;
+    vec3 surfaceToCamera = normalize(-pos.xyz); //also a unit vector    
+    // Use Blinn-Phong specular model, to match fixed-function pipeline result (at least on nvidia)
+    vec3 H = normalize(surfaceToLight + surfaceToCamera);
+    float nDotH = max(0.0, dot(normal, H));
+    float specularCoefficient = pow(nDotH, 150);
+    vec3 specular = specularCoefficient * specular_light;
 
-    return diffuse + specular + ambient;
+    return diffuse + specular + ambient;        
 }
 
 float fragDepthFromEyeXyz(vec3 eyeXyz) {
@@ -73,11 +73,11 @@ float fragDepthFromEyeXyz(vec3 eyeXyz) {
     float far=gl_DepthRange.far; // usually 1.0
     float near=gl_DepthRange.near; // usually 0.0
 
-	vec4 eye_space_pos = vec4(eyeXyz, 1);
-	vec4 clip_space_pos = gl_ProjectionMatrix * eye_space_pos;
-	
-	float ndc_depth = clip_space_pos.z / clip_space_pos.w;
-	
-	float depth = (((far-near) * ndc_depth) + near + far) / 2.0;
-	return depth;
+    vec4 eye_space_pos = vec4(eyeXyz, 1);
+    vec4 clip_space_pos = gl_ProjectionMatrix * eye_space_pos;
+    
+    float ndc_depth = clip_space_pos.z / clip_space_pos.w;
+    
+    float depth = (((far-near) * ndc_depth) + near + far) / 2.0;
+    return depth;
 }
