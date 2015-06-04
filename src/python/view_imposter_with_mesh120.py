@@ -23,7 +23,16 @@ class Vec3():
 	def __init__(self, data):
 		assert len(data) == 3
 		self._data = data
-		
+
+	def dot(self, other):
+		return sum([a*b for a, b in zip(self, other)])
+	
+	def norm(self):
+		return math.sqrt(self.normSquared())
+	
+	def normSquared(self):
+		return self.dot(self)
+	
 	def __len__(self):
 		return len(self._data)
 	
@@ -54,6 +63,42 @@ class Vec3():
 	def __div__(self, other):
 		return Vec3( [l/other for l in self] )
 	
+
+class ConeSegment():
+	# Cone segment that exactly joins two spheres
+	def __init__(self, sphere1, sphere2):
+		self.sphere1 = sphere1
+		self.sphere2 = sphere2
+		cs1 = Vec3(sphere1.center)
+		cs2 = Vec3(sphere2.center)
+		rs1 = sphere1.radius
+		rs2 = sphere2.radius
+		# Swap so r2 is always the largest
+		if rs2 < rs1:
+			rs1, rs2 = rs2, rs1
+			cs1, cs2 = cs2, cs1
+		# Shift cone parts to fit radius offset
+		d = (cs2 - cs1).norm() # distance between sphere centers
+		# half cone angle, to just touch each sphere
+		sinAlpha = (rs2 - rs1) / d;
+		cosAlpha = math.sqrt(1 - sinAlpha*sinAlpha)
+		# Actual cone terminal radii might be smaller than sphere radii
+		r1 = cosAlpha * rs1
+		r2 = cosAlpha * rs2
+		# Cone termini might not lie at sphere centers
+		aHat = (cs1 - cs2) / d
+		dC1 = sinAlpha * aHat
+		dC2 = sinAlpha * aHat
+		# Cone termini
+		c1 = cs1 + dC1
+		c2 = cs2 + dC2
+		# Final cone parameters
+		self.axis = (c1 - c2) / 2.0
+		self.length = self.axis.norm() * 2.0
+		self.center = (c1 + c2) / 2.0
+		self.taper = (r2 - r1) / self.length
+		self.radius = (r1 + r2) / 2.0
+
 
 class Sphere():
 	"Class representing a sphere to be rendered"
@@ -207,7 +252,7 @@ class SimpleImposterViewer:
 						}
 						""", GL_FRAGMENT_SHADER)
 			)
-		
+
 			# Create shader for sphere imposters		
 			self.sphere_shader = shaders.compileProgram(
 				shaders.compileShader(glsl_fns_str, GL_VERTEX_SHADER),
@@ -273,6 +318,72 @@ class SimpleImposterViewer:
 						""", GL_FRAGMENT_SHADER)
 			)
 			
+			# Create shader for sphere imposters		
+			self.cone_shader = shaders.compileProgram(
+				shaders.compileShader(glsl_fns_str, GL_VERTEX_SHADER),
+				shaders.compileShader(
+						"""
+						#version 120
+						
+						varying vec4 pos1;
+						varying vec4 surface_color;
+						
+						varying float radius;
+						varying vec2 pc_c2;
+						varying vec3 center;
+						
+						// defined in imposter_fns120.glsl
+						vec2 sphere_linear_coeffs(vec3 center, float radius, vec3 pos);
+
+						void main() {
+							// imposter geometry is sum of sphere center and normal
+							vec4 pos_local = vec4(gl_Vertex.xyz + gl_Normal.xyz, 1);
+							radius = gl_Vertex.w;
+							
+							pos1 = gl_ModelViewMatrix * pos_local;
+							gl_Position = gl_ProjectionMatrix * pos1;
+							surface_color = gl_Color.rgba;
+
+							vec4 c = gl_ModelViewMatrix * vec4(gl_Vertex.xyz, 1);
+							center = c.xyz/c.w;
+							pc_c2 = sphere_linear_coeffs(center, radius, pos1.xyz/pos1.w);
+						}
+						""", GL_VERTEX_SHADER), 
+				shaders.compileShader(glsl_fns_str, GL_FRAGMENT_SHADER),
+				shaders.compileShader(
+						"""
+						#version 120
+
+						varying vec4 pos1;
+						varying vec4 surface_color;
+						varying float radius;
+						varying vec3 center;
+						varying vec2 pc_c2;
+						
+						// defined in imposter_fns120.glsl
+						vec2 sphere_nonlinear_coeffs(vec3 pos, vec2 pc_c2);
+						vec3 sphere_surface_from_coeffs(vec3 pos, vec2 pc_c2, vec2 a2_d);
+						vec3 light_rig(vec4 pos, vec3 normal, vec3 color);
+						float fragDepthFromEyeXyz(vec3 eyeXyz);
+						
+						void main() {
+							gl_FragColor = vec4(1, 0, 1, 1);
+							return;
+						
+							vec3 pos = pos1.xyz/pos1.w;
+							vec2 a2_d = sphere_nonlinear_coeffs(pos, pc_c2);
+							if (a2_d.y <= 0)
+								discard; // Point does not intersect sphere
+							vec3 s = sphere_surface_from_coeffs(pos, pc_c2, a2_d);
+							vec3 normal = 1.0 / radius * (s - center);
+							gl_FragColor = vec4(
+								light_rig(vec4(s, 1), normal, surface_color.rgb),
+								1);
+							gl_FragDepth = fragDepthFromEyeXyz(s);
+						}
+						""", GL_FRAGMENT_SHADER)
+			)
+			
 			
 		# The function called when our window is resized (which shouldn't happen if you enable fullscreen, below)
 		def ReSizeGLScene(self, Width, Height):
@@ -311,10 +422,16 @@ class SimpleImposterViewer:
 			glTranslatef( 1.6,0.0,0);
 			             # Move Right
 			glColor3f(0.2, 0.5, 0.8)
-			self.renderSphereImposterImmediate(0, -0.2, 0, 1.1)
+			self.renderSphereImposterImmediate(Sphere( [0, -0.2, 0], 1.1) )
 
 			glColor3f(0.1, 0.7, 0.1)
-			self.renderSphereImposterImmediate(-0.5, 1.2, 0, 0.8)
+			self.renderSphereImposterImmediate(Sphere( [-0.5, -1.2, 0], 0.8) )
+
+			sph1 = Sphere([0, 1.5, 0], 1.0)
+			sph2 = Sphere([1.2, 1.5, 0], 0.2)
+			self.renderSphereImposterImmediate(sph1)
+			self.renderSphereImposterImmediate(sph2)
+			cone = ConeSegment(sph1, sph2)	
 
 			# Right sphere is a standard mesh, shaded with GLSL
 			glTranslatef( 1.6, 0.0, 0);             # Move Right
@@ -337,9 +454,9 @@ class SimpleImposterViewer:
 			cone_axis = [a/cone_length for a in cone_axis]
 			# TODO
 		
-		def renderSphereImposterImmediate(self, x, y, z, radius):
+		def renderSphereImposterImmediate(self, sphere):
 			shaders.glUseProgram(self.sphere_shader)
-			Sphere([x,y,z], radius).generateBoundingGeometryImmediate()
+			sphere.generateBoundingGeometryImmediate()
 		
 		# The function called whenever a key is pressed. Note the use of Python tuples to pass in: (key, x, y)  
 		def keyPressed(self, *args):
