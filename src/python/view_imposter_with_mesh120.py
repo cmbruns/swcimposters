@@ -176,6 +176,7 @@ class SimpleImposterViewer:
 						vec2 sphere_nonlinear_coeffs(vec3 pos, vec2 pc_c2);
 						vec3 sphere_surface_from_coeffs(vec3 pos, vec2 pc_c2, vec2 a2_d);
 						vec3 light_rig(vec4 pos, vec3 normal, vec3 color);
+						float fragDepthFromEyeXyz(vec3 eyeXyz);
 						
 						void main() {
 							vec3 pos = pos1.xyz/pos1.w;
@@ -188,6 +189,7 @@ class SimpleImposterViewer:
 							gl_FragColor = vec4(
 								light_rig(vec4(s, 1), normal, surface_color.rgb),
 								1);
+							gl_FragDepth = fragDepthFromEyeXyz(s);
 						}
 						""", GL_FRAGMENT_SHADER)
 			)
