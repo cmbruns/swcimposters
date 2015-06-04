@@ -12,10 +12,48 @@ from OpenGL.GLUT import *
 from OpenGL.GLU import *
 from OpenGL.GL import shaders
 import sys
+import math
 
 # Some api in the chain is translating the keystrokes to this octal string
 # so instead of saying: ESCAPE = 27, we use the following.
 ESCAPE = '\033'
+
+
+class Sphere():
+	"Class representing a sphere to be rendered"
+	def __init__(self, center, radius):
+		self.center = center
+		self.radius = radius
+		
+	def generateBoundingGeometryImmediate(self):
+		# Draw bounding cube geometry, three faces at a time
+		# Bottom front top
+		x = self.center[0]
+		y = self.center[1]
+		z = self.center[2]
+		glBegin(GL_TRIANGLE_STRIP)
+		for corner in [
+					[-1, -1, -1], [1, -1, -1], [-1, -1, 1], [1, -1, 1], # bottom 
+					[-1, 1, 1], [1, 1, 1], # front
+					[-1, 1, -1], [1, 1, -1], # top
+					 ]:
+			# Encode imposter geometry offset from sphere center into normal attribute
+			glNormal3f(corner[0]*self.radius, corner[1]*self.radius, corner[2]*self.radius)
+			# Position attribute always contains sphere center and radius
+			glVertex4f(x, y, z, self.radius)		
+		glEnd()
+		# left back right
+		glBegin(GL_TRIANGLE_STRIP)
+		for corner in [
+					[-1, -1, 1], [-1, 1, 1], [-1, -1, -1], [-1, 1, -1], # left 
+					[1, -1, -1], [1, 1, -1], # back 
+					[1, -1, 1], [1, 1, 1] # right,
+					 ]:
+			# Encode imposter geometry offset from sphere center into normal attribute
+			glNormal3f(corner[0]*self.radius, corner[1]*self.radius, corner[2]*self.radius)
+			# Position attribute always contains sphere center and radius
+			glVertex4f(x, y, z, self.radius)		
+		glEnd()
 
 
 class SimpleImposterViewer:
@@ -34,7 +72,7 @@ class SimpleImposterViewer:
 			glDepthFunc(GL_LESS)				# The Type Of Depth Test To Do
 			glEnable(GL_DEPTH_TEST)				# Enables Depth Testing
 			glShadeModel(GL_SMOOTH)				# Enables Smooth Color Shading
-			glEnable(GL_CULL_FACE)
+			glEnable(GL_CULL_FACE) # use face culling, so I can verify that imposter geometry uses front faces
 			
 			glMatrixMode(GL_PROJECTION)
 			glLoadIdentity()					# Reset The Projection Matrix
@@ -304,15 +342,13 @@ class SimpleImposterViewer:
 			shaders.glUseProgram(0)
 
 			# Middle sphere is (eventually) an imposter			
-			glTranslatef( 1.6,0.0,0);             # Move Right
+			glTranslatef( 1.6,0.0,0);
+			             # Move Right
 			glColor3f(0.2, 0.5, 0.8)
-			# TODO - use as imposter
-			shaders.glUseProgram(self.sphere_shader)
-			# glutSolidCube(2.0)
-			# drawTriangle()
-			shaders.glUseProgram(0)
-			
 			self.renderSphereImposterImmediate(0, -0.2, 0, 1.1)
+
+			glColor3f(0.1, 0.7, 0.1)
+			self.renderSphereImposterImmediate(-0.5, 1.2, 0, 0.8)
 
 			# Right sphere is a standard mesh, shaded with GLSL
 			glTranslatef( 1.6, 0.0, 0);             # Move Right
@@ -329,32 +365,15 @@ class SimpleImposterViewer:
 			self.yrot += 1.00
 			# print self.yrot
 		
+		def renderConeImposterImmediate(self, center1, center2, radius1, radius2):
+			cone_axis = [ a - b for a,b in zip(center1, center2) ]
+			cone_length = math.pow(sum([ a*a for a in cone_axis ]), 0.5)
+			cone_axis = [a/cone_length for a in cone_axis]
+			# TODO
+		
 		def renderSphereImposterImmediate(self, x, y, z, radius):
 			shaders.glUseProgram(self.sphere_shader2)
-			# Bottom front top
-			glBegin(GL_TRIANGLE_STRIP)
-			for corner in [
-						[-1, -1, -1], [1, -1, -1], [-1, -1, 1], [1, -1, 1], # bottom 
-						[-1, 1, 1], [1, 1, 1], # front
-						[-1, 1, -1], [1, 1, -1], # top
-						 ]:
-				# Encode imposter geometry offset from sphere center into normal attribute
-				glNormal3f(corner[0]*radius, corner[1]*radius, corner[2]*radius)
-				# Position attribute always contains sphere center and radius
-				glVertex4f(x, y, z, radius)		
-			glEnd()
-			# left back right
-			glBegin(GL_TRIANGLE_STRIP)
-			for corner in [
-						[-1, -1, 1], [-1, 1, 1], [-1, -1, -1], [-1, 1, -1], # left 
-						[1, -1, -1], [1, 1, -1], # back 
-						[1, -1, 1], [1, 1, 1] # right,
-						 ]:
-				# Encode imposter geometry offset from sphere center into normal attribute
-				glNormal3f(corner[0]*radius, corner[1]*radius, corner[2]*radius)
-				# Position attribute always contains sphere center and radius
-				glVertex4f(x, y, z, radius)		
-			glEnd()
+			Sphere([x,y,z], radius).generateBoundingGeometryImmediate()
 		
 		# The function called whenever a key is pressed. Note the use of Python tuples to pass in: (key, x, y)  
 		def keyPressed(self, *args):
