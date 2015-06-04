@@ -34,6 +34,7 @@ class SimpleImposterViewer:
 			glDepthFunc(GL_LESS)				# The Type Of Depth Test To Do
 			glEnable(GL_DEPTH_TEST)				# Enables Depth Testing
 			glShadeModel(GL_SMOOTH)				# Enables Smooth Color Shading
+			glEnable(GL_CULL_FACE)
 			
 			glMatrixMode(GL_PROJECTION)
 			glLoadIdentity()					# Reset The Projection Matrix
@@ -193,6 +194,71 @@ class SimpleImposterViewer:
 						}
 						""", GL_FRAGMENT_SHADER)
 			)
+			# Create shader for sphere imposters		
+			self.sphere_shader2 = shaders.compileProgram(
+				shaders.compileShader(glsl_fns_str, GL_VERTEX_SHADER),
+				shaders.compileShader(
+						"""
+						#version 120
+						
+						varying vec4 pos1;
+						varying vec4 surface_color;
+						
+						varying float radius;
+						varying vec2 pc_c2;
+						varying vec3 center;
+						
+						// defined in imposter_fns120.glsl
+						vec2 sphere_linear_coeffs(vec3 center, float radius, vec3 pos);
+
+						void main() {
+							// imposter geometry is sum of sphere center and normal
+							vec4 pos_local = vec4(gl_Vertex.xyz + gl_Normal.xyz, 1);
+							radius = gl_Vertex.w;
+							
+							pos1 = gl_ModelViewMatrix * pos_local;
+							gl_Position = gl_ProjectionMatrix * pos1;
+							surface_color = gl_Color.rgba;
+							
+							// TODO - hard coding sphere parameters for the moment...
+							// radius = 1.0; // TODO - test non-1.0 values
+							vec4 c = gl_ModelViewMatrix * vec4(gl_Vertex.xyz, 1);
+							center = c.xyz/c.w;
+							pc_c2 = sphere_linear_coeffs(center, radius, pos1.xyz/pos1.w);
+						}
+						""", GL_VERTEX_SHADER), 
+				shaders.compileShader(glsl_fns_str, GL_FRAGMENT_SHADER),
+				shaders.compileShader(
+						"""
+						#version 120
+
+						varying vec4 pos1;
+						varying vec4 surface_color;
+						varying float radius;
+						varying vec3 center;
+						varying vec2 pc_c2;
+						
+						// defined in imposter_fns120.glsl
+						vec2 sphere_nonlinear_coeffs(vec3 pos, vec2 pc_c2);
+						vec3 sphere_surface_from_coeffs(vec3 pos, vec2 pc_c2, vec2 a2_d);
+						vec3 light_rig(vec4 pos, vec3 normal, vec3 color);
+						float fragDepthFromEyeXyz(vec3 eyeXyz);
+						
+						void main() {
+							vec3 pos = pos1.xyz/pos1.w;
+							vec2 a2_d = sphere_nonlinear_coeffs(pos, pc_c2);
+							if (a2_d.y <= 0)
+								discard; // Point does not intersect sphere
+							vec3 s = sphere_surface_from_coeffs(pos, pc_c2, a2_d);
+							vec3 normal = 1.0 / radius * (s - center);
+							gl_FragColor = vec4(
+								light_rig(vec4(s, 1), normal, surface_color.rgb),
+								1);
+							gl_FragDepth = fragDepthFromEyeXyz(s);
+						}
+						""", GL_FRAGMENT_SHADER)
+			)
+			
 			
 		# The function called when our window is resized (which shouldn't happen if you enable fullscreen, below)
 		def ReSizeGLScene(self, Width, Height):
@@ -227,7 +293,7 @@ class SimpleImposterViewer:
 			
 			glLoadIdentity()					# Reset The View 
 			glTranslatef(0.0,0.0,-6.0);             # MoveInto The Screen
-			glRotatef(self.yrot, 0.0,1.0,0.0);             # Rotate The Pyramid On It's Y Axis
+			glRotatef(self.yrot, 0.0, 1.0, 0.0);             # Rotate The Pyramid On It's Y Axis
 			
 			# Leftmost sphere is shaded using the fixed function pipeline
 			glTranslatef(-1.6,0.0,0);             # Move Left
@@ -242,10 +308,12 @@ class SimpleImposterViewer:
 			glColor3f(0.2, 0.5, 0.8)
 			# TODO - use as imposter
 			shaders.glUseProgram(self.sphere_shader)
-			glutSolidCube(2.0)
+			# glutSolidCube(2.0)
 			# drawTriangle()
 			shaders.glUseProgram(0)
 			
+			self.renderSphereImposterImmediate(0, -0.2, 0, 1.1)
+
 			# Right sphere is a standard mesh, shaded with GLSL
 			glTranslatef( 1.6, 0.0, 0);             # Move Right
 			glColor3f(0.2, 0.8, 0.5)
@@ -261,6 +329,32 @@ class SimpleImposterViewer:
 			self.yrot += 1.00
 			# print self.yrot
 		
+		def renderSphereImposterImmediate(self, x, y, z, radius):
+			shaders.glUseProgram(self.sphere_shader2)
+			# Bottom front top
+			glBegin(GL_TRIANGLE_STRIP)
+			for corner in [
+						[-1, -1, -1], [1, -1, -1], [-1, -1, 1], [1, -1, 1], # bottom 
+						[-1, 1, 1], [1, 1, 1], # front
+						[-1, 1, -1], [1, 1, -1], # top
+						 ]:
+				# Encode imposter geometry offset from sphere center into normal attribute
+				glNormal3f(corner[0]*radius, corner[1]*radius, corner[2]*radius)
+				# Position attribute always contains sphere center and radius
+				glVertex4f(x, y, z, radius)		
+			glEnd()
+			# left back right
+			glBegin(GL_TRIANGLE_STRIP)
+			for corner in [
+						[-1, -1, 1], [-1, 1, 1], [-1, -1, -1], [-1, 1, -1], # left 
+						[1, -1, -1], [1, 1, -1], # back 
+						[1, -1, 1], [1, 1, 1] # right,
+						 ]:
+				# Encode imposter geometry offset from sphere center into normal attribute
+				glNormal3f(corner[0]*radius, corner[1]*radius, corner[2]*radius)
+				# Position attribute always contains sphere center and radius
+				glVertex4f(x, y, z, radius)		
+			glEnd()
 		
 		# The function called whenever a key is pressed. Note the use of Python tuples to pass in: (key, x, y)  
 		def keyPressed(self, *args):

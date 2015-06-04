@@ -70,8 +70,8 @@ vec3 light_rig(vec4 pos, vec3 normal, vec3 surface_color) {
 
 float fragDepthFromEyeXyz(vec3 eyeXyz) {
     // From http://stackoverflow.com/questions/10264949/glsl-gl-fragcoord-z-calculation-and-setting-gl-fragdepth
-    float far=gl_DepthRange.far; 
-    float near=gl_DepthRange.near;
+    float far=gl_DepthRange.far; // usually 1.0
+    float near=gl_DepthRange.near; // usually 0.0
 
 	vec4 eye_space_pos = vec4(eyeXyz, 1);
 	vec4 clip_space_pos = gl_ProjectionMatrix * eye_space_pos;
