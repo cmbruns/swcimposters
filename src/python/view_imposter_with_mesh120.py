@@ -99,6 +99,38 @@ class ConeSegment():
         self.taper = (r2 - r1) / self.length
         self.radius = (r1 + r2) / 2.0
 
+    def generateBoundingGeometryImmediate(self):
+        "This method should be developed into a host imposter geometry example"
+        # TODO - correct this shape for cone
+        # Draw bounding box geometry, three faces at a time
+        # Bottom front top
+        x = self.center[0]
+        y = self.center[1]
+        z = self.center[2]
+        glBegin(GL_TRIANGLE_STRIP)
+        for corner in [
+                    [-1, -1, -1], [1, -1, -1], [-1, -1, 1], [1, -1, 1], # bottom 
+                    [-1, 1, 1], [1, 1, 1], # front
+                    [-1, 1, -1], [1, 1, -1], # top
+                     ]:
+            # Encode imposter geometry offset from sphere center into normal attribute
+            glNormal3f(corner[0]*self.radius, corner[1]*self.radius, corner[2]*self.radius)
+            # Position attribute always contains sphere center and radius
+            glVertex4f(x, y, z, self.radius)        
+        glEnd()
+        # left back right
+        glBegin(GL_TRIANGLE_STRIP)
+        for corner in [
+                    [-1, -1, 1], [-1, 1, 1], [-1, -1, -1], [-1, 1, -1], # left 
+                    [1, -1, -1], [1, 1, -1], # back 
+                    [1, -1, 1], [1, 1, 1] # right,
+                     ]:
+            # Encode imposter geometry offset from sphere center into normal attribute
+            glNormal3f(corner[0]*self.radius, corner[1]*self.radius, corner[2]*self.radius)
+            # Position attribute always contains sphere center and radius
+            glVertex4f(x, y, z, self.radius)        
+        glEnd()
+
 
 class Sphere():
     "Class representing a sphere to be rendered"
@@ -432,7 +464,8 @@ class SimpleImposterViewer:
             sph2 = Sphere([1.2, 1.5, 0], 0.2)
             self.renderSphereImposterImmediate(sph1)
             self.renderSphereImposterImmediate(sph2)
-            cone = ConeSegment(sph1, sph2)    
+            cone = ConeSegment(sph1, sph2)
+            self.renderConeImposterImmediate(cone)
 
             # Right sphere is a standard mesh, shaded with GLSL
             glTranslatef( 1.6, 0.0, 0);             # Move Right
@@ -449,11 +482,9 @@ class SimpleImposterViewer:
             self.yrot += 1.00
             # print self.yrot
         
-        def renderConeImposterImmediate(self, center1, center2, radius1, radius2):
-            cone_axis = [ a - b for a,b in zip(center1, center2) ]
-            cone_length = math.pow(sum([ a*a for a in cone_axis ]), 0.5)
-            cone_axis = [a/cone_length for a in cone_axis]
-            # TODO
+        def renderConeImposterImmediate(self, cone):
+            shaders.glUseProgram(self.cone_shader)
+            cone.generateBoundingGeometryImmediate()
         
         def renderSphereImposterImmediate(self, sphere):
             shaders.glUseProgram(self.sphere_shader)
