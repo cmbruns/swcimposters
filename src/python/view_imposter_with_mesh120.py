@@ -68,9 +68,9 @@ class SimpleImposterViewer:
 				glMateriali(GL_FRONT, GL_SHININESS, 150)
 			
 			# Read utility functions from file
-			with open ("../glsl/imposter_fns_frag.glsl", "r") as myfile:
+			with open ("../glsl/imposter_fns_frag120.glsl", "r") as myfile:
 				frag_fns_str = myfile.read()
-			with open ("../glsl/imposter_fns.glsl", "r") as myfile:
+			with open ("../glsl/imposter_fns120.glsl", "r") as myfile:
 				glsl_fns_str = myfile.read()
 				
 			# Create a test shader for debugging, which just colors everything green.
@@ -147,7 +147,7 @@ class SimpleImposterViewer:
 						varying vec2 pc_c2;
 						varying vec3 center;
 						
-						// defined in imposter_fns.glsl
+						// defined in imposter_fns120.glsl
 						vec2 sphere_linear_coeffs(vec3 center, float radius, vec3 pos);
 
 						void main() { 
@@ -172,7 +172,7 @@ class SimpleImposterViewer:
 						varying vec3 center;
 						varying vec2 pc_c2;
 						
-						// defined in imposter_fns.glsl
+						// defined in imposter_fns120.glsl
 						vec2 sphere_nonlinear_coeffs(vec3 pos, vec2 pc_c2);
 						vec3 sphere_surface_from_coeffs(vec3 pos, vec2 pc_c2, vec2 a2_d);
 						vec3 light_rig(vec4 pos, vec3 normal, vec3 color);
@@ -276,6 +276,9 @@ class SimpleImposterViewer:
 			# Alpha components supported 
 			# Depth buffer
 			glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE | GLUT_DEPTH)
+			
+			# glutInitContextVersion(3, 1);
+			# glutInitContextProfile(GLUT_CORE_PROFILE)
 			
 			# get a 640 x 480 window 
 			glutInitWindowSize(640, 480)
