@@ -19,6 +19,42 @@ import math
 ESCAPE = '\033'
 
 
+class Vec3():
+	def __init__(self, data):
+		assert len(data) == 3
+		self._data = data
+		
+	def __len__(self):
+		return len(self._data)
+	
+	def __getitem__(self, key):
+		return self._data[key]
+	
+	def __setitem__(self, key, value):
+		self._data[key] = value
+	
+	def __add__(self, other):
+		return Vec3( [l+r for l,r in zip(self, other)] )
+	
+	def __radd__(self, other):
+		return Vec3( [r+l for l,r in zip(self, other)] )
+	
+	def __sub__(self, other):
+		return Vec3( [l-r for l,r in zip(self, other)] )
+	
+	def __rsub__(self, other):
+		return Vec3( [r-l for l,r in zip(self, other)] )
+	
+	def __mul__(self, other):
+		return Vec3( [l*other for l in self] )
+
+	def __rmul__(self, other):
+		return Vec3( [other*l for l in self] )
+	
+	def __div__(self, other):
+		return Vec3( [l/other for l in self] )
+	
+
 class Sphere():
 	"Class representing a sphere to be rendered"
 	def __init__(self, center, radius):
@@ -189,66 +225,6 @@ class SimpleImposterViewer:
 						// defined in imposter_fns120.glsl
 						vec2 sphere_linear_coeffs(vec3 center, float radius, vec3 pos);
 
-						void main() { 
-							pos1 = gl_ModelViewMatrix * gl_Vertex;
-							gl_Position = gl_ProjectionMatrix * pos1;
-							surface_color = gl_Color.rgba;
-							
-							// TODO - hard coding sphere parameters for the moment...
-							radius = 1.0; // TODO - test non-1.0 values
-							center = vec3(0, 0, -6);
-							pc_c2 = sphere_linear_coeffs(center, radius, pos1.xyz/pos1.w);
-						}
-						""", GL_VERTEX_SHADER), 
-				shaders.compileShader(glsl_fns_str, GL_FRAGMENT_SHADER),
-				shaders.compileShader(
-						"""
-						#version 120
-
-						varying vec4 pos1;
-						varying vec4 surface_color;
-						varying float radius;
-						varying vec3 center;
-						varying vec2 pc_c2;
-						
-						// defined in imposter_fns120.glsl
-						vec2 sphere_nonlinear_coeffs(vec3 pos, vec2 pc_c2);
-						vec3 sphere_surface_from_coeffs(vec3 pos, vec2 pc_c2, vec2 a2_d);
-						vec3 light_rig(vec4 pos, vec3 normal, vec3 color);
-						float fragDepthFromEyeXyz(vec3 eyeXyz);
-						
-						void main() {
-							vec3 pos = pos1.xyz/pos1.w;
-							vec2 a2_d = sphere_nonlinear_coeffs(pos, pc_c2);
-							if (a2_d.y <= 0)
-								discard; // Point does not intersect sphere
-							vec3 s = sphere_surface_from_coeffs(pos, pc_c2, a2_d);
-							vec3 normal = 1.0 / radius * (s - center);
-							// gl_FragColor = vec4(normal, 1);
-							gl_FragColor = vec4(
-								light_rig(vec4(s, 1), normal, surface_color.rgb),
-								1);
-							gl_FragDepth = fragDepthFromEyeXyz(s);
-						}
-						""", GL_FRAGMENT_SHADER)
-			)
-			# Create shader for sphere imposters		
-			self.sphere_shader2 = shaders.compileProgram(
-				shaders.compileShader(glsl_fns_str, GL_VERTEX_SHADER),
-				shaders.compileShader(
-						"""
-						#version 120
-						
-						varying vec4 pos1;
-						varying vec4 surface_color;
-						
-						varying float radius;
-						varying vec2 pc_c2;
-						varying vec3 center;
-						
-						// defined in imposter_fns120.glsl
-						vec2 sphere_linear_coeffs(vec3 center, float radius, vec3 pos);
-
 						void main() {
 							// imposter geometry is sum of sphere center and normal
 							vec4 pos_local = vec4(gl_Vertex.xyz + gl_Normal.xyz, 1);
@@ -309,16 +285,6 @@ class SimpleImposterViewer:
 			gluPerspective(45.0, float(Width)/float(Height), 0.1, 100.0)
 			glMatrixMode(GL_MODELVIEW)
 		
-		def drawTriangle(self):
-			glBegin(GL_TRIANGLES)
-			glColor3f(1.0,0.0,0.0)          # Red
-			glVertex3f( 0.0, 1.0, 0.0)          # Top Of Triangle (Front)
-			glColor3f(0.0,1.0,0.0)          # Green
-			glVertex3f(-1.0,-1.0, 1.0)          # Left Of Triangle (Front)
-			glColor3f(0.0,0.0,1.0)          # Blue
-			glVertex3f( 1.0,-1.0, 1.0)          # Right Of Triangle (Front)
-			glEnd()
-		
 		# The main drawing function. 
 		def DrawGLScene(self):
 			
@@ -341,7 +307,7 @@ class SimpleImposterViewer:
 			glutSolidSphere(1.0, 20, 20)
 			shaders.glUseProgram(0)
 
-			# Middle sphere is (eventually) an imposter			
+			# Middle sphere is an imposter			
 			glTranslatef( 1.6,0.0,0);
 			             # Move Right
 			glColor3f(0.2, 0.5, 0.8)
@@ -372,7 +338,7 @@ class SimpleImposterViewer:
 			# TODO
 		
 		def renderSphereImposterImmediate(self, x, y, z, radius):
-			shaders.glUseProgram(self.sphere_shader2)
+			shaders.glUseProgram(self.sphere_shader)
 			Sphere([x,y,z], radius).generateBoundingGeometryImmediate()
 		
 		# The function called whenever a key is pressed. Note the use of Python tuples to pass in: (key, x, y)  
