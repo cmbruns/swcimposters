@@ -24,6 +24,12 @@ class Vec3():
         assert len(data) == 3
         self._data = data
 
+    def cross(self, rhs):
+        return Vec3([
+            self[1]*rhs[2] - self[2]*rhs[1],
+            self[2]*rhs[0] - self[0]*rhs[2],
+            self[0]*rhs[1] - self[1]*rhs[0], ])
+        
     def dot(self, other):
         return sum([a*b for a, b in zip(self, other)])
     
