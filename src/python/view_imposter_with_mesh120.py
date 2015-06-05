@@ -405,11 +405,13 @@ class SimpleImposterViewer:
                         varying vec4 surface_color;
                         
                         varying float radius;
-                        varying vec4 pa_tap_qec_qeb;
+                        varying vec3 tap_qec_qeb;
+                        varying vec3 qe_undot_half_a;
                         varying vec3 center;
                         
                         // defined in imposter_fns120.glsl
-                        vec4 cone_linear_coeffs(vec3 center, float radius, vec3 axis, float taper, vec3 pos);
+                        vec3 cone_linear_coeffs1(vec3 center, float radius, vec3 axis, float taper, vec3 pos);
+                        vec3 cone_linear_coeffs2(vec3 center, float radius, vec3 axis, float taper, vec3 pos);
 
                         void main() {
                             // imposter geometry is sum of sphere center and normal
@@ -425,7 +427,8 @@ class SimpleImposterViewer:
                             // Cone axis and taper are shoehorned into the texture coordinate
                             vec3 axis = gl_MultiTexCoord0.xyz;
                             float taper = gl_MultiTexCoord0.w;
-                            pa_tap_qec_qeb = cone_linear_coeffs(center, radius, axis, taper, pos1.xyz/pos1.w);
+                            tap_qec_qeb = cone_linear_coeffs1(center, radius, axis, taper, pos1.xyz/pos1.w);
+                            qe_undot_half_a = cone_linear_coeffs2(center, radius, axis, taper, pos1.xyz/pos1.w);
                         }
                         """, GL_VERTEX_SHADER), 
                 shaders.compileShader(glsl_fns_str, GL_FRAGMENT_SHADER),
@@ -437,24 +440,29 @@ class SimpleImposterViewer:
                         varying vec4 surface_color;
                         varying float radius;
                         varying vec3 center;
-                        varying vec4 pa_tap_qec_qeb;
+                        varying vec3 tap_qec_qeb;
+                        varying vec3 qe_undot_half_a;
                         
                         // defined in imposter_fns120.glsl
-                        vec2 cone_nonlinear_coeffs(vec3 pos, vec4 pa_tap_qec_qeb);
-                        vec3 cone_surface_from_coeffs(vec3 pos, vec4 pc_c2, vec2 a2_d);
+                        vec2 cone_nonlinear_coeffs(vec3 pos, vec3 tap_qec_qeb, vec3 qe_undot_half_a);
+                        vec3 cone_surface_from_coeffs(vec3 pos, vec3 tap_qec_qeb, vec2 a2_d);
                         vec3 light_rig(vec4 pos, vec3 normal, vec3 color);
                         float fragDepthFromEyeXyz(vec3 eyeXyz);
                         
                         void main() {
                             vec3 pos = pos1.xyz/pos1.w;
-                            vec2 a2_d = cone_nonlinear_coeffs(pos, pa_tap_qec_qeb);
-                            if (a2_d.y <= 0)
-                                discard; // Point does not intersect sphere
-
-                            gl_FragColor = vec4(1, 0, 1, 1);
-                            return;
                             
-                            vec3 s = cone_surface_from_coeffs(pos, pa_tap_qec_qeb, a2_d);
+                            // gl_FragColor = vec4(0.5*pos + 0.5*vec3(1,1,1), 1); return;
+                            gl_FragColor = vec4(0.2, 0.2, 0.2, 1); return;
+                            // TODO
+                            
+                            vec2 a2_d = cone_nonlinear_coeffs(pos, tap_qec_qeb, qe_undot_half_a);
+                            if (a2_d.y <= 0)
+                                discard; // Point does not intersect cone
+
+                            gl_FragColor = vec4(0.2, 0.2, 0.2, 1); return;
+                            
+                            vec3 s = cone_surface_from_coeffs(pos, tap_qec_qeb, a2_d);
                             vec3 normal = 1.0 / radius * (s - center);
                             gl_FragColor = vec4(
                                 light_rig(vec4(s, 1), normal, surface_color.rgb),
@@ -507,7 +515,7 @@ class SimpleImposterViewer:
             glColor3f(0.1, 0.7, 0.1)
             self.renderSphereImposterImmediate(Sphere( [-0.5, -1.2, 0], 0.8) )
 
-            sph1 = Sphere([0, 1.1, 0], 1.1)
+            sph1 = Sphere([0, 1.1, 0], 1.0)
             sph2 = Sphere([1.2, 1.5, 0], 0.2)
             self.renderSphereImposterImmediate(sph1)
             self.renderSphereImposterImmediate(sph2)
