@@ -147,7 +147,9 @@ class ConeSegment():
                   + corner[2] * zHat * r )
             glNormal3f(p[0], p[1], p[2])
             # Position attribute always contains cone centroid and central radius
-            glVertex4f(x, y, z, self.radius)        
+            glVertex4f(x, y, z, self.radius)
+            # Encode additional parameters, cone axis and taper, in 
+            glTexCoord4f(self.axis[0], self.axis[1], self.axis[2], self.taper)
         glEnd()
         # left back right
         glBegin(GL_TRIANGLE_STRIP)
@@ -168,6 +170,8 @@ class ConeSegment():
             glNormal3f(p[0], p[1], p[2])
             # Position attribute always contains cone centroid and central radius
             glVertex4f(x, y, z, self.radius)        
+            # Encode additional parameters, cone axis and taper, in 
+            glTexCoord4f(self.axis[0], self.axis[1], self.axis[2], self.taper)
         glEnd()
 
 
@@ -401,11 +405,11 @@ class SimpleImposterViewer:
                         varying vec4 surface_color;
                         
                         varying float radius;
-                        varying vec2 pc_c2;
+                        varying vec4 pa_tap_qec_qeb;
                         varying vec3 center;
                         
                         // defined in imposter_fns120.glsl
-                        vec2 sphere_linear_coeffs(vec3 center, float radius, vec3 pos);
+                        vec4 cone_linear_coeffs(vec3 center, float radius, vec3 axis, float taper, vec3 pos);
 
                         void main() {
                             // imposter geometry is sum of sphere center and normal
@@ -418,7 +422,10 @@ class SimpleImposterViewer:
 
                             vec4 c = gl_ModelViewMatrix * vec4(gl_Vertex.xyz, 1);
                             center = c.xyz/c.w;
-                            pc_c2 = sphere_linear_coeffs(center, radius, pos1.xyz/pos1.w);
+                            // Cone axis and taper are shoehorned into the texture coordinate
+                            vec3 axis = gl_MultiTexCoord0.xyz;
+                            float taper = gl_MultiTexCoord0.w;
+                            pa_tap_qec_qeb = cone_linear_coeffs(center, radius, axis, taper, pos1.xyz/pos1.w);
                         }
                         """, GL_VERTEX_SHADER), 
                 shaders.compileShader(glsl_fns_str, GL_FRAGMENT_SHADER),
@@ -430,23 +437,24 @@ class SimpleImposterViewer:
                         varying vec4 surface_color;
                         varying float radius;
                         varying vec3 center;
-                        varying vec2 pc_c2;
+                        varying vec4 pa_tap_qec_qeb;
                         
                         // defined in imposter_fns120.glsl
-                        vec2 sphere_nonlinear_coeffs(vec3 pos, vec2 pc_c2);
-                        vec3 sphere_surface_from_coeffs(vec3 pos, vec2 pc_c2, vec2 a2_d);
+                        vec2 cone_nonlinear_coeffs(vec3 pos, vec4 pa_tap_qec_qeb);
+                        vec3 cone_surface_from_coeffs(vec3 pos, vec4 pc_c2, vec2 a2_d);
                         vec3 light_rig(vec4 pos, vec3 normal, vec3 color);
                         float fragDepthFromEyeXyz(vec3 eyeXyz);
                         
                         void main() {
-                            gl_FragColor = vec4(1, 0, 1, 1);
-                            return;
-                        
                             vec3 pos = pos1.xyz/pos1.w;
-                            vec2 a2_d = sphere_nonlinear_coeffs(pos, pc_c2);
+                            vec2 a2_d = cone_nonlinear_coeffs(pos, pa_tap_qec_qeb);
                             if (a2_d.y <= 0)
                                 discard; // Point does not intersect sphere
-                            vec3 s = sphere_surface_from_coeffs(pos, pc_c2, a2_d);
+
+                            gl_FragColor = vec4(1, 0, 1, 1);
+                            return;
+                            
+                            vec3 s = cone_surface_from_coeffs(pos, pa_tap_qec_qeb, a2_d);
                             vec3 normal = 1.0 / radius * (s - center);
                             gl_FragColor = vec4(
                                 light_rig(vec4(s, 1), normal, surface_color.rgb),
