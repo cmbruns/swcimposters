@@ -93,8 +93,8 @@ class ConeSegment():
         r2 = cosAlpha * rs2
         # Cone termini might not lie at sphere centers
         aHat = (cs1 - cs2) / d
-        dC1 = sinAlpha * aHat
-        dC2 = sinAlpha * aHat
+        dC1 = sinAlpha * rs1 * aHat
+        dC2 = sinAlpha * rs2 * aHat
         # Cone termini
         c1 = cs1 + dC1
         c2 = cs2 + dC2
@@ -104,10 +104,27 @@ class ConeSegment():
         self.center = (c1 + c2) / 2.0
         self.taper = (r2 - r1) / self.length
         self.radius = (r1 + r2) / 2.0
+        self.r1 = r1
+        self.r2 = r2
 
     def generateBoundingGeometryImmediate(self):
         "This method should be developed into a host imposter geometry example"
         # TODO - correct this shape for cone
+        
+        # Compute principal axes of bounding geometry
+        d = self.axis.norm()
+        xHat = self.axis / d # X along cone axis
+        # Y along any orthogonal axis
+        # To avoid numerical problems, try two different ways to create first orthogonal vector
+        yHat1 = xHat.cross([1.0, 0.0, 0.0])
+        yHat2 = xHat.cross([0.0, 0.0, 1.0])
+        if yHat1.normSquared() >= yHat2.normSquared():
+            yHat = yHat1
+        else:
+            yHat = yHat2
+        yHat = yHat / yHat.norm()
+        zHat = xHat.cross(yHat) # Third and final axis is simple
+        
         # Draw bounding box geometry, three faces at a time
         # Bottom front top
         x = self.center[0]
@@ -120,8 +137,16 @@ class ConeSegment():
                     [-1, 1, -1], [1, 1, -1], # top
                      ]:
             # Encode imposter geometry offset from sphere center into normal attribute
-            glNormal3f(corner[0]*self.radius, corner[1]*self.radius, corner[2]*self.radius)
-            # Position attribute always contains sphere center and radius
+            # X axis points toward smaller end of cone
+            if corner[0] > 0:
+                r = self.r1 # smaller end
+            else:
+                r = self.r2 # larger end
+            p = (   corner[0] * xHat * d
+                  + corner[1] * yHat * r
+                  + corner[2] * zHat * r )
+            glNormal3f(p[0], p[1], p[2])
+            # Position attribute always contains cone centroid and central radius
             glVertex4f(x, y, z, self.radius)        
         glEnd()
         # left back right
@@ -132,8 +157,16 @@ class ConeSegment():
                     [1, -1, 1], [1, 1, 1] # right,
                      ]:
             # Encode imposter geometry offset from sphere center into normal attribute
-            glNormal3f(corner[0]*self.radius, corner[1]*self.radius, corner[2]*self.radius)
-            # Position attribute always contains sphere center and radius
+            # X axis points toward smaller end of cone
+            if corner[0] > 0:
+                r = self.r1 # smaller end
+            else:
+                r = self.r2 # larger end
+            p = (   corner[0] * xHat * d
+                  + corner[1] * yHat * r
+                  + corner[2] * zHat * r )
+            glNormal3f(p[0], p[1], p[2])
+            # Position attribute always contains cone centroid and central radius
             glVertex4f(x, y, z, self.radius)        
         glEnd()
 
@@ -466,7 +499,7 @@ class SimpleImposterViewer:
             glColor3f(0.1, 0.7, 0.1)
             self.renderSphereImposterImmediate(Sphere( [-0.5, -1.2, 0], 0.8) )
 
-            sph1 = Sphere([0, 1.5, 0], 1.0)
+            sph1 = Sphere([0, 1.1, 0], 1.1)
             sph2 = Sphere([1.2, 1.5, 0], 0.2)
             self.renderSphereImposterImmediate(sph1)
             self.renderSphereImposterImmediate(sph2)
@@ -525,7 +558,7 @@ class SimpleImposterViewer:
             # Okay, like the C version we retain the window id to use when closing, but for those of you new
             # to Python (like myself), remember this assignment would make the variable local and not global
             # if it weren't for the global declaration at the start of main.
-            self.window = glutCreateWindow("Jeff Molofee's GL Code Tutorial ... NeHe '99")
+            self.window = glutCreateWindow("SWC imposter demo")
         
                # Register the drawing function with glut, BUT in Python land, at least using PyOpenGL, we need to
             # set the function pointer and invoke a function to actually register the callback, otherwise it
