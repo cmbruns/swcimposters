@@ -224,7 +224,7 @@ class SimpleImposterViewer:
                 glLightfv(GL_LIGHT1, GL_DIFFUSE, GLfloat_3(.8,.8,.8))
                 glLightfv(GL_LIGHT1, GL_SPECULAR, GLfloat_3(.8,.8,.8) )
                 glMaterialfv(GL_FRONT, GL_SPECULAR, GLfloat_4(0.8, 0.8, 0.8, 1.0) )
-                glMateriali(GL_FRONT, GL_SHININESS, 150)
+                glMaterialf(GL_FRONT, GL_SHININESS, 128.0) # max is 128 on cyberbear
             
             # Read utility functions from file
             with open ("../glsl/imposter_fns_frag120.glsl", "r") as myfile:
