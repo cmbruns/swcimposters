@@ -93,8 +93,8 @@ class ConeSegment():
         r2 = cosAlpha * rs2
         # Cone termini might not lie at sphere centers
         aHat = (cs1 - cs2) / d
-        dC1 = sinAlpha * aHat
-        dC2 = sinAlpha * aHat
+        dC1 = sinAlpha * rs1 * aHat
+        dC2 = sinAlpha * rs2 * aHat
         # Cone termini
         c1 = cs1 + dC1
         c2 = cs2 + dC2
@@ -104,10 +104,27 @@ class ConeSegment():
         self.center = (c1 + c2) / 2.0
         self.taper = (r2 - r1) / self.length
         self.radius = (r1 + r2) / 2.0
+        self.r1 = r1
+        self.r2 = r2
 
     def generateBoundingGeometryImmediate(self):
         "This method should be developed into a host imposter geometry example"
         # TODO - correct this shape for cone
+        
+        # Compute principal axes of bounding geometry
+        d = self.axis.norm()
+        xHat = self.axis / d # X along cone axis
+        # Y along any orthogonal axis
+        # To avoid numerical problems, try two different ways to create first orthogonal vector
+        yHat1 = xHat.cross([1.0, 0.0, 0.0])
+        yHat2 = xHat.cross([0.0, 0.0, 1.0])
+        if yHat1.normSquared() >= yHat2.normSquared():
+            yHat = yHat1
+        else:
+            yHat = yHat2
+        yHat = yHat / yHat.norm()
+        zHat = xHat.cross(yHat) # Third and final axis is simple
+        
         # Draw bounding box geometry, three faces at a time
         # Bottom front top
         x = self.center[0]
@@ -120,9 +137,19 @@ class ConeSegment():
                     [-1, 1, -1], [1, 1, -1], # top
                      ]:
             # Encode imposter geometry offset from sphere center into normal attribute
-            glNormal3f(corner[0]*self.radius, corner[1]*self.radius, corner[2]*self.radius)
-            # Position attribute always contains sphere center and radius
-            glVertex4f(x, y, z, self.radius)        
+            # X axis points toward smaller end of cone
+            if corner[0] > 0:
+                r = self.r1 # smaller end
+            else:
+                r = self.r2 # larger end
+            p = (   corner[0] * xHat * d
+                  + corner[1] * yHat * r
+                  + corner[2] * zHat * r )
+            glNormal3f(p[0], p[1], p[2])
+            # Position attribute always contains cone centroid and central radius
+            glVertex4f(x, y, z, self.radius)
+            # Encode additional parameters, cone axis and taper, in 
+            glTexCoord4f(self.axis[0], self.axis[1], self.axis[2], self.taper)
         glEnd()
         # left back right
         glBegin(GL_TRIANGLE_STRIP)
@@ -132,9 +159,19 @@ class ConeSegment():
                     [1, -1, 1], [1, 1, 1] # right,
                      ]:
             # Encode imposter geometry offset from sphere center into normal attribute
-            glNormal3f(corner[0]*self.radius, corner[1]*self.radius, corner[2]*self.radius)
-            # Position attribute always contains sphere center and radius
+            # X axis points toward smaller end of cone
+            if corner[0] > 0:
+                r = self.r1 # smaller end
+            else:
+                r = self.r2 # larger end
+            p = (   corner[0] * xHat * d
+                  + corner[1] * yHat * r
+                  + corner[2] * zHat * r )
+            glNormal3f(p[0], p[1], p[2])
+            # Position attribute always contains cone centroid and central radius
             glVertex4f(x, y, z, self.radius)        
+            # Encode additional parameters, cone axis and taper, in 
+            glTexCoord4f(self.axis[0], self.axis[1], self.axis[2], self.taper)
         glEnd()
 
 
@@ -368,11 +405,13 @@ class SimpleImposterViewer:
                         varying vec4 surface_color;
                         
                         varying float radius;
-                        varying vec2 pc_c2;
+                        varying vec3 tap_qec_qeb;
+                        varying vec3 qe_undot_half_a;
                         varying vec3 center;
                         
                         // defined in imposter_fns120.glsl
-                        vec2 sphere_linear_coeffs(vec3 center, float radius, vec3 pos);
+                        vec3 cone_linear_coeffs1(vec3 center, float radius, vec3 axis, float taper, vec3 pos);
+                        vec3 cone_linear_coeffs2(vec3 center, float radius, vec3 axis, float taper, vec3 pos);
 
                         void main() {
                             // imposter geometry is sum of sphere center and normal
@@ -385,7 +424,11 @@ class SimpleImposterViewer:
 
                             vec4 c = gl_ModelViewMatrix * vec4(gl_Vertex.xyz, 1);
                             center = c.xyz/c.w;
-                            pc_c2 = sphere_linear_coeffs(center, radius, pos1.xyz/pos1.w);
+                            // Cone axis and taper are shoehorned into the texture coordinate
+                            vec3 axis = gl_MultiTexCoord0.xyz;
+                            float taper = gl_MultiTexCoord0.w;
+                            tap_qec_qeb = cone_linear_coeffs1(center, radius, axis, taper, pos1.xyz/pos1.w);
+                            qe_undot_half_a = cone_linear_coeffs2(center, radius, axis, taper, pos1.xyz/pos1.w);
                         }
                         """, GL_VERTEX_SHADER), 
                 shaders.compileShader(glsl_fns_str, GL_FRAGMENT_SHADER),
@@ -397,23 +440,29 @@ class SimpleImposterViewer:
                         varying vec4 surface_color;
                         varying float radius;
                         varying vec3 center;
-                        varying vec2 pc_c2;
+                        varying vec3 tap_qec_qeb;
+                        varying vec3 qe_undot_half_a;
                         
                         // defined in imposter_fns120.glsl
-                        vec2 sphere_nonlinear_coeffs(vec3 pos, vec2 pc_c2);
-                        vec3 sphere_surface_from_coeffs(vec3 pos, vec2 pc_c2, vec2 a2_d);
+                        vec2 cone_nonlinear_coeffs(vec3 pos, vec3 tap_qec_qeb, vec3 qe_undot_half_a);
+                        vec3 cone_surface_from_coeffs(vec3 pos, vec3 tap_qec_qeb, vec2 a2_d);
                         vec3 light_rig(vec4 pos, vec3 normal, vec3 color);
                         float fragDepthFromEyeXyz(vec3 eyeXyz);
                         
                         void main() {
-                            gl_FragColor = vec4(1, 0, 1, 1);
-                            return;
-                        
                             vec3 pos = pos1.xyz/pos1.w;
-                            vec2 a2_d = sphere_nonlinear_coeffs(pos, pc_c2);
+                            
+                            // gl_FragColor = vec4(0.5*pos + 0.5*vec3(1,1,1), 1); return;
+                            gl_FragColor = vec4(0.2, 0.2, 0.2, 1); return;
+                            // TODO
+                            
+                            vec2 a2_d = cone_nonlinear_coeffs(pos, tap_qec_qeb, qe_undot_half_a);
                             if (a2_d.y <= 0)
-                                discard; // Point does not intersect sphere
-                            vec3 s = sphere_surface_from_coeffs(pos, pc_c2, a2_d);
+                                discard; // Point does not intersect cone
+
+                            gl_FragColor = vec4(0.2, 0.2, 0.2, 1); return;
+                            
+                            vec3 s = cone_surface_from_coeffs(pos, tap_qec_qeb, a2_d);
                             vec3 normal = 1.0 / radius * (s - center);
                             gl_FragColor = vec4(
                                 light_rig(vec4(s, 1), normal, surface_color.rgb),
@@ -466,7 +515,7 @@ class SimpleImposterViewer:
             glColor3f(0.1, 0.7, 0.1)
             self.renderSphereImposterImmediate(Sphere( [-0.5, -1.2, 0], 0.8) )
 
-            sph1 = Sphere([0, 1.5, 0], 1.0)
+            sph1 = Sphere([0, 1.1, 0], 1.0)
             sph2 = Sphere([1.2, 1.5, 0], 0.2)
             self.renderSphereImposterImmediate(sph1)
             self.renderSphereImposterImmediate(sph2)
@@ -525,7 +574,7 @@ class SimpleImposterViewer:
             # Okay, like the C version we retain the window id to use when closing, but for those of you new
             # to Python (like myself), remember this assignment would make the variable local and not global
             # if it weren't for the global declaration at the start of main.
-            self.window = glutCreateWindow("Jeff Molofee's GL Code Tutorial ... NeHe '99")
+            self.window = glutCreateWindow("SWC imposter demo")
         
                # Register the drawing function with glut, BUT in Python land, at least using PyOpenGL, we need to
             # set the function pointer and invoke a function to actually register the callback, otherwise it
