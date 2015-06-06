@@ -62,7 +62,7 @@ vec3 light_rig(vec4 pos, vec3 normal, vec3 surface_color) {
     // Use Blinn-Phong specular model, to match fixed-function pipeline result (at least on nvidia)
     vec3 H = normalize(surfaceToLight + surfaceToCamera);
     float nDotH = max(0.0, dot(normal, H));
-    float specularCoefficient = pow(nDotH, 150);
+    float specularCoefficient = pow(nDotH, 100);
     vec3 specular = specularCoefficient * specular_light;
 
     return diffuse + specular + ambient;        
