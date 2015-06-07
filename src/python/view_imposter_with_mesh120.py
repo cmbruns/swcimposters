@@ -454,8 +454,8 @@ class SimpleImposterViewer:
                         varying vec3 downscaled_axis; // For truncating ends
                         
                         // defined in imposter_fns120.glsl
-                        vec2 cone_nonlinear_coeffs(vec3 pos, vec3 tap_qec_qeb, vec3 qe_undot_half_a);
-                        vec3 cone_surface_from_coeffs(vec3 pos, vec3 tap_qec_qeb, vec2 a2_d);
+                        void cone_nonlinear_coeffs(vec3 pos, vec3 tap_qec_qeb, vec3 qe_undot_half_a, out float qe_half_a, out float discriminant);
+                        void cone_surface_from_coeffs(in vec3 pos, in vec3 tap_qec_qeb, in float qe_half_a, in float discriminant, out vec3 surface_pos);
                         vec3 light_rig(vec4 pos, vec3 normal, vec3 color);
                         float fragDepthFromEyeXyz(vec3 eyeXyz);
                         
@@ -466,13 +466,15 @@ class SimpleImposterViewer:
                             // gl_FragColor = vec4(0.6, 0.6, 0.6, 1); return;
                             // TODO
                             
-                            vec2 a2_d = cone_nonlinear_coeffs(pos, tap_qec_qeb, qe_undot_half_a);
-                            if (a2_d.y <= 0)
+                            float qe_half_a, discriminant;
+                            cone_nonlinear_coeffs(pos, tap_qec_qeb, qe_undot_half_a,
+                                qe_half_a, discriminant);
+                            if (discriminant <= 0) {
                                 discard; // Point does not intersect cone
+                            }
 
-                            // gl_FragColor = vec4(0.6, 0.6, 0.6, 1); return;
-                            
-                            vec3 s = cone_surface_from_coeffs(pos, tap_qec_qeb, a2_d);
+                            vec3 s;
+                            cone_surface_from_coeffs(pos, tap_qec_qeb, qe_half_a, discriminant, s);
                             
                             // gl_FragColor = vec4(0.6, 0.6, 0.6, 1); return;
                             

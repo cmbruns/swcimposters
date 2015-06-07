@@ -54,27 +54,28 @@ vec3 cone_linear_coeffs2(vec3 center, float radius, vec3 axis, float taper, vec3
 
 // Second phase of sphere imposter shading: Compute nonlinear coefficients
 // in fragment shader, including discriminant used to reject fragments.
-vec2 cone_nonlinear_coeffs(vec3 pos, vec3 tap_qec_qeb, vec3 qe_undot_half_a) {
+void cone_nonlinear_coeffs(vec3 pos, vec3 tap_qec_qeb, vec3 qe_undot_half_a,
+    out float qe_half_a, out float discriminant) 
+{
     // set up quadratic formula for sphere surface ray casting
     float qe_half_b = tap_qec_qeb.z;
     float tAP = tap_qec_qeb.x;
-    float qe_half_a = dot(qe_undot_half_a, qe_undot_half_a) - tAP * tAP; // TODO - restore non-cylinder component
+    qe_half_a = dot(qe_undot_half_a, qe_undot_half_a) - tAP * tAP; // TODO - restore non-cylinder component
     float qe_c = tap_qec_qeb.y;
-    float discriminant = qe_half_b * qe_half_b - qe_half_a * qe_c;
-    return vec2(qe_half_a, discriminant);
+    discriminant = qe_half_b * qe_half_b - qe_half_a * qe_c;
 }
 
 // Third and final phase of sphere imposter shading: Compute sphere
 // surface XYZ coordinates in fragment shader.
-vec3 cone_surface_from_coeffs(vec3 pos, vec3 tap_qec_qeb, vec2 a2_d) {
-    float discriminant = a2_d.y; // Negative values should be discarded.
-    float qe_half_a = a2_d.x;
+void cone_surface_from_coeffs(in vec3 pos, in vec3 tap_qec_qeb, in float qe_half_a, in float discriminant, 
+    out vec3 surface_pos)
+{
     float qe_half_b = tap_qec_qeb.z;
     float left = -qe_half_b / qe_half_a;
     float right = sqrt(discriminant) / qe_half_a;
     float alpha1 = left - right; // near surface of sphere
     // float alpha2 = left + right; // far/back surface of sphere
-    return alpha1 * pos;
+    surface_pos = alpha1 * pos;
 }
 
 
