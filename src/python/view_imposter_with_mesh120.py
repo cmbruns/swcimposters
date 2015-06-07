@@ -167,11 +167,12 @@ class ConeSegment():
             p = (   corner[0] * xHat * d
                   + corner[1] * yHat * r
                   + corner[2] * zHat * r )
+            # Encode additional parameters, cone axis and taper, in texture coordinate
+            glTexCoord4f(self.axis[0], self.axis[1], self.axis[2], self.taper)
+            # Encode geometry offset from cone centroid in normal vector
             glNormal3f(p[0], p[1], p[2])
             # Position attribute always contains cone centroid and central radius
             glVertex4f(x, y, z, self.radius)        
-            # Encode additional parameters, cone axis and taper, in 
-            glTexCoord4f(self.axis[0], self.axis[1], self.axis[2], self.taper)
         glEnd()
 
 
@@ -405,9 +406,12 @@ class SimpleImposterViewer:
                         varying vec4 surface_color;
                         
                         varying float radius;
+                        varying float taper;
+                        varying vec3 axis;
                         varying vec3 tap_qec_qeb;
                         varying vec3 qe_undot_half_a;
                         varying vec3 center;
+                        varying vec3 downscaled_axis; // For truncating ends
                         
                         // defined in imposter_fns120.glsl
                         vec3 cone_linear_coeffs1(vec3 center, float radius, vec3 axis, float taper, vec3 pos);
@@ -425,8 +429,11 @@ class SimpleImposterViewer:
                             vec4 c = gl_ModelViewMatrix * vec4(gl_Vertex.xyz, 1);
                             center = c.xyz/c.w;
                             // Cone axis and taper are shoehorned into the texture coordinate
-                            vec3 axis = gl_MultiTexCoord0.xyz;
-                            float taper = gl_MultiTexCoord0.w;
+                            
+                            axis = (gl_ModelViewMatrix * vec4(gl_MultiTexCoord0.xyz, 0)).xyz;
+                            downscaled_axis = axis / dot(axis, axis);
+                            
+                            taper = gl_MultiTexCoord0.w;
                             tap_qec_qeb = cone_linear_coeffs1(center, radius, axis, taper, pos1.xyz/pos1.w);
                             qe_undot_half_a = cone_linear_coeffs2(center, radius, axis, taper, pos1.xyz/pos1.w);
                         }
@@ -437,11 +444,14 @@ class SimpleImposterViewer:
                         #version 120
 
                         varying vec4 pos1;
+                        varying float taper;
+                        varying vec3 axis;
                         varying vec4 surface_color;
                         varying float radius;
                         varying vec3 center;
                         varying vec3 tap_qec_qeb;
                         varying vec3 qe_undot_half_a;
+                        varying vec3 downscaled_axis; // For truncating ends
                         
                         // defined in imposter_fns120.glsl
                         vec2 cone_nonlinear_coeffs(vec3 pos, vec3 tap_qec_qeb, vec3 qe_undot_half_a);
@@ -453,20 +463,38 @@ class SimpleImposterViewer:
                             vec3 pos = pos1.xyz/pos1.w;
                             
                             // gl_FragColor = vec4(0.5*pos + 0.5*vec3(1,1,1), 1); return;
-                            gl_FragColor = vec4(0.2, 0.2, 0.2, 1); return;
+                            // gl_FragColor = vec4(0.6, 0.6, 0.6, 1); return;
                             // TODO
                             
                             vec2 a2_d = cone_nonlinear_coeffs(pos, tap_qec_qeb, qe_undot_half_a);
                             if (a2_d.y <= 0)
                                 discard; // Point does not intersect cone
 
-                            gl_FragColor = vec4(0.2, 0.2, 0.2, 1); return;
+                            // gl_FragColor = vec4(0.6, 0.6, 0.6, 1); return;
                             
                             vec3 s = cone_surface_from_coeffs(pos, tap_qec_qeb, a2_d);
-                            vec3 normal = 1.0 / radius * (s - center);
+                            
+                            // gl_FragColor = vec4(0.6, 0.6, 0.6, 1); return;
+                            
+                            // Truncate cone to prescribed ends
+                            if ( abs(dot(s - center, downscaled_axis)) > 1.0 ) 
+                                discard;
+                            
+                            // vec3 normal = normalize(s - center); // TODO - wrong for cone
+                            // TODO - simplify normal express to use less normalizes
+                            vec3 aHat = normalize(axis); // cone axis
+                            vec3 yHat = normalize(cross(s - center, aHat)); // perp. to cone axis and surface position
+                            vec3 sHat = cross(aHat, yHat); // perp. to cone axis, toward surface position
+                            vec3 normal = normalize(mix(sHat, aHat, taper)); // TODO - not quite right
+                            
+                            // gl_FragColor = vec4(0.6, 0.6, 0.6, 1); return;
+                            
                             gl_FragColor = vec4(
                                 light_rig(vec4(s, 1), normal, surface_color.rgb),
                                 1);
+                                
+                            // return;
+
                             gl_FragDepth = fragDepthFromEyeXyz(s);
                         }
                         """, GL_FRAGMENT_SHADER)
@@ -515,7 +543,7 @@ class SimpleImposterViewer:
             glColor3f(0.1, 0.7, 0.1)
             self.renderSphereImposterImmediate(Sphere( [-0.5, -1.2, 0], 0.8) )
 
-            sph1 = Sphere([0, 1.1, 0], 1.0)
+            sph1 = Sphere([0, 1.1, 0], 0.8)
             sph2 = Sphere([1.2, 1.5, 0], 0.2)
             self.renderSphereImposterImmediate(sph1)
             self.renderSphereImposterImmediate(sph2)
