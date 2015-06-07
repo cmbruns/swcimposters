@@ -415,7 +415,9 @@ class SimpleImposterViewer:
                         
                         // defined in imposter_fns120.glsl
                         vec3 cone_linear_coeffs1(vec3 center, float radius, vec3 axis, float taper, vec3 pos);
-                        vec3 cone_linear_coeffs2(vec3 center, float radius, vec3 axis, float taper, vec3 pos);
+                        void cone_linear_coeffs2(vec3 center, float radius, vec3 axis, float taper, vec3 pos,
+                                out vec3 qe_undot_half_a);
+                        // vec3 cone_linear_coeffs2(vec3 center, float radius, vec3 axis, float taper, vec3 pos);
 
                         void main() {
                             // imposter geometry is sum of sphere center and normal
@@ -435,7 +437,7 @@ class SimpleImposterViewer:
                             
                             taper = gl_MultiTexCoord0.w;
                             tap_qec_qeb = cone_linear_coeffs1(center, radius, axis, taper, pos1.xyz/pos1.w);
-                            qe_undot_half_a = cone_linear_coeffs2(center, radius, axis, taper, pos1.xyz/pos1.w);
+                            cone_linear_coeffs2(center, radius, axis, taper, pos1.xyz/pos1.w, qe_undot_half_a);
                         }
                         """, GL_VERTEX_SHADER), 
                 shaders.compileShader(glsl_fns_str, GL_FRAGMENT_SHADER),

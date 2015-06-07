@@ -46,10 +46,12 @@ vec3 cone_linear_coeffs1(vec3 center, float radius, vec3 axis, float taper, vec3
 
 // First phase of cone imposter shading: Compute linear coefficients in vertex shader,
 // to ease burden on fragment shader
-vec3 cone_linear_coeffs2(vec3 center, float radius, vec3 axis, float taper, vec3 pos) {
+void cone_linear_coeffs2(vec3 center, float radius, vec3 axis, float taper, vec3 pos,
+        out vec3 qe_undot_half_a) 
+{
     // "A" parameter of quadratic formula is nonlinear, but has two linear components
     vec3 cylAxis = normalize(-axis);
-    return cross(pos, cylAxis); // (1)
+    qe_undot_half_a = cross(pos, cylAxis); // (1)
 }
 
 // Second phase of sphere imposter shading: Compute nonlinear coefficients
