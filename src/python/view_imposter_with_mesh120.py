@@ -464,43 +464,37 @@ class SimpleImposterViewer:
                         float fragDepthFromEyeXyz(vec3 eyeXyz);
                         
                         void main() {
+                            // Get XYZ location of imposter geometry fragment
                             vec3 pos = pos1.xyz/pos1.w;
-                            
-                            // gl_FragColor = vec4(0.5*pos + 0.5*vec3(1,1,1), 1); return;
-                            // gl_FragColor = vec4(0.6, 0.6, 0.6, 1); return;
-                            // TODO
-                            
+
+                            // Cull unneeded fragments by setting up quadratic formula
                             float qe_half_a, discriminant;
                             cone_nonlinear_coeffs(pos, tap_qec_qeb, qe_undot_half_a,
                                 qe_half_a, discriminant);
-                            if (discriminant <= 0) {
+                            if (discriminant <= 0)
                                 discard; // Point does not intersect cone
-                            }
 
+                            // Compute projected surface of cone
                             vec3 s;
                             cone_surface_from_coeffs(pos, tap_qec_qeb, qe_half_a, discriminant, s);
                             
-                            // gl_FragColor = vec4(0.6, 0.6, 0.6, 1); return;
-                            
-                            // Truncate cone to prescribed ends
+                            // Truncate cone geometry to prescribed ends
                             if ( abs(dot(s - center, downscaled_axis)) > 1.0 ) 
                                 discard;
                             
-                            // vec3 normal = normalize(s - center); // TODO - wrong for cone
-                            // TODO - simplify normal expression to use less normalizes
+                            // Compute surface normal vector, for shading
+                            // TODO - simplify normal expression to use fewer "normalize"s
                             vec3 aHat = normalize(axis); // cone axis
                             vec3 yHat = normalize(cross(s - center, aHat)); // perp. to cone axis and surface position
                             vec3 sHat = cross(aHat, yHat); // perp. to cone axis, toward surface position
                             vec3 normal = normalize( sHat + taper * aHat );
-                            
-                            // gl_FragColor = vec4(0.6, 0.6, 0.6, 1); return;
-                            
+
+                            // illuminate the cone surface
                             gl_FragColor = vec4(
                                 light_rig(vec4(s, 1), normal, surface_color.rgb),
                                 1);
-                                
-                            // return;
 
+                            // Put computed cone surface Z depth into depth buffer
                             gl_FragDepth = fragDepthFromEyeXyz(s);
                         }
                         """, GL_FRAGMENT_SHADER)
