@@ -481,11 +481,11 @@ class SimpleImposterViewer:
                                 discard;
                             
                             // vec3 normal = normalize(s - center); // TODO - wrong for cone
-                            // TODO - simplify normal express to use less normalizes
+                            // TODO - simplify normal expression to use less normalizes
                             vec3 aHat = normalize(axis); // cone axis
                             vec3 yHat = normalize(cross(s - center, aHat)); // perp. to cone axis and surface position
                             vec3 sHat = cross(aHat, yHat); // perp. to cone axis, toward surface position
-                            vec3 normal = normalize(mix(sHat, aHat, taper)); // TODO - not quite right
+                            vec3 normal = normalize( sHat + taper * aHat );
                             
                             // gl_FragColor = vec4(0.6, 0.6, 0.6, 1); return;
                             
@@ -543,8 +543,8 @@ class SimpleImposterViewer:
             glColor3f(0.1, 0.7, 0.1)
             self.renderSphereImposterImmediate(Sphere( [-0.5, -1.2, 0], 0.8) )
 
-            sph1 = Sphere([0, 1.1, 0], 0.8)
-            sph2 = Sphere([1.2, 1.5, 0], 0.2)
+            sph1 = Sphere([0, 1.1, 0], 0.5)
+            sph2 = Sphere([1.2, 1.5, 0], 0.5)
             self.renderSphereImposterImmediate(sph1)
             self.renderSphereImposterImmediate(sph2)
             cone = ConeSegment(sph1, sph2)
