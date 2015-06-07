@@ -12,7 +12,9 @@
 
 // First phase of cone imposter shading: Compute linear coefficients in vertex shader,
 // to ease burden on fragment shader
-vec3 cone_linear_coeffs1(vec3 center, float radius, vec3 axis, float taper, vec3 pos) {
+void cone_linear_coeffs1(vec3 center, float radius, vec3 axis, float taper, vec3 pos,
+        out vec3 tap_qec_qeb) 
+{
     // TODO Copying from cinemol until debugged
     vec3 p1 = center + axis;
     vec3 p2 = center - axis;
@@ -41,7 +43,7 @@ vec3 cone_linear_coeffs1(vec3 center, float radius, vec3 axis, float taper, vec3
     float qe_c = dot(cxa, cxa) - radius * radius + (2*radius - tAC)*tAC;
     // float qe_C = dot(cxa, cxa) - radius*radius ; // + (2*radius - tAC)*tAC; // (3) // TODO - restore non-cylinder component
 
-    return vec3(tAP, qe_c, qe_half_b);
+    tap_qec_qeb = vec3(tAP, qe_c, qe_half_b);
 }
 
 // First phase of cone imposter shading: Compute linear coefficients in vertex shader,

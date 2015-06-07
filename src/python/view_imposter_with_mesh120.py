@@ -414,7 +414,9 @@ class SimpleImposterViewer:
                         varying vec3 downscaled_axis; // For truncating ends
                         
                         // defined in imposter_fns120.glsl
-                        vec3 cone_linear_coeffs1(vec3 center, float radius, vec3 axis, float taper, vec3 pos);
+                        // vec3 cone_linear_coeffs1(vec3 center, float radius, vec3 axis, float taper, vec3 pos);
+                        void cone_linear_coeffs1(vec3 center, float radius, vec3 axis, float taper, vec3 pos,
+                                out vec3 tap_qec_qeb);
                         void cone_linear_coeffs2(vec3 center, float radius, vec3 axis, float taper, vec3 pos,
                                 out vec3 qe_undot_half_a);
                         // vec3 cone_linear_coeffs2(vec3 center, float radius, vec3 axis, float taper, vec3 pos);
@@ -436,7 +438,7 @@ class SimpleImposterViewer:
                             downscaled_axis = axis / dot(axis, axis);
                             
                             taper = gl_MultiTexCoord0.w;
-                            tap_qec_qeb = cone_linear_coeffs1(center, radius, axis, taper, pos1.xyz/pos1.w);
+                            cone_linear_coeffs1(center, radius, axis, taper, pos1.xyz/pos1.w, tap_qec_qeb);
                             cone_linear_coeffs2(center, radius, axis, taper, pos1.xyz/pos1.w, qe_undot_half_a);
                         }
                         """, GL_VERTEX_SHADER), 
