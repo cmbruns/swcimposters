@@ -428,6 +428,7 @@ class SimpleImposterViewer:
                         // derived linear ray casting parameters, best computed in vertex/geometry shader
                         varying float tAP, qe_c, qe_half_b;
                         varying vec3 qe_undot_half_a;
+                        varying float normalScale;
                         
                         // function prototypes from imposter_fns120.glsl
                         void cone_linear_coeffs(vec3 center, float radius, vec3 axis, float taper, vec3 pos,
@@ -455,6 +456,7 @@ class SimpleImposterViewer:
                                 tAP, qe_c, qe_half_b, qe_undot_half_a);
 
                             aHat = normalize(axis);
+                            normalScale  = 1.0 / sqrt(1.0 + taper*taper);
                         }
                         """, GL_VERTEX_SHADER), 
                 shaders.compileShader(glsl_fns_str, GL_FRAGMENT_SHADER),
@@ -475,6 +477,7 @@ class SimpleImposterViewer:
                         // derived linear ray casting parameters, best computed in vertex/geometry shader
                         varying float tAP, qe_c, qe_half_b;
                         varying vec3 qe_undot_half_a;
+                        varying float normalScale;
                         
                         // prototypes defined in imposter_fns120.glsl
                         void cone_nonlinear_coeffs(in float tAP, in float qe_c, in float qe_half_b, in vec3 qe_undot_half_a,out float qe_half_a, out float discriminant);
@@ -500,11 +503,8 @@ class SimpleImposterViewer:
                                 discard;
                             
                             // Compute surface normal vector, for shading
-                            // TODO - simplify normal expression to use fewer "normalize"s
-                            vec3 yHat = cross(cs, aHat); // perp. to cone axis and surface position
-                            vec3 sHat = normalize(cross(aHat, yHat)); // perp. to cone axis, toward surface position
-                            vec3 normal = normalize( sHat + taper * aHat ); // looks OK
-                            // vec3 normal = normalize( cs - dot(cs,aHat)*aHat ); // looks wrong
+                            vec3 n1 = normalize( cs - dot(cs,aHat)*aHat );
+                            vec3 normal = normalScale * (n1 + taper * aHat);
 
                             // illuminate the cone surface
                             gl_FragColor = vec4(
