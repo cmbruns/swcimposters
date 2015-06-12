@@ -421,18 +421,13 @@ class SimpleImposterViewer:
                         varying float radius;
                         varying float taper;
                         varying vec3 axis;
-                        // varying vec3 tap_qec_qeb;
                         varying float tAP, qe_c, qe_half_b;
                         varying vec3 qe_undot_half_a;
                         varying vec3 center;
                         varying vec3 downscaled_axis; // For truncating ends
                         
-                        // defined in imposter_fns120.glsl
-                        void cone_linear_coeffs1(vec3 center, float radius, vec3 axis, float taper, vec3 pos,
-                                out float tAP, out float qe_c, out float qe_half_b); 
-                        void cone_linear_coeffs2(vec3 center, float radius, vec3 axis, float taper, vec3 pos,
-                                out vec3 qe_undot_half_a);
-                        // vec3 cone_linear_coeffs2(vec3 center, float radius, vec3 axis, float taper, vec3 pos);
+                        void cone_linear_coeffs(vec3 center, float radius, vec3 axis, float taper, vec3 pos,
+                            out float tAP, out float qe_c, out float qe_half_b, out vec3 qe_undot_half_a);
 
                         void main() {
                             // imposter geometry is sum of sphere center and normal
@@ -445,15 +440,14 @@ class SimpleImposterViewer:
 
                             vec4 c = gl_ModelViewMatrix * vec4(gl_Vertex.xyz, 1);
                             center = c.xyz/c.w;
-                            // Cone axis and taper are shoehorned into the texture coordinate
                             
+                            // Cone axis and taper are shoehorned into the texture coordinate
                             axis = (gl_ModelViewMatrix * vec4(gl_MultiTexCoord0.xyz, 0)).xyz;
                             downscaled_axis = axis / dot(axis, axis);
-                            
                             taper = gl_MultiTexCoord0.w;
-                            cone_linear_coeffs1(center, radius, axis, taper, pos1.xyz/pos1.w, 
-                                tAP, qe_c, qe_half_b);
-                            cone_linear_coeffs2(center, radius, axis, taper, pos1.xyz/pos1.w, qe_undot_half_a);
+                            
+                            cone_linear_coeffs(center, radius, axis, taper, pos1.xyz/pos1.w, 
+                                tAP, qe_c, qe_half_b, qe_undot_half_a);
                         }
                         """, GL_VERTEX_SHADER), 
                 shaders.compileShader(glsl_fns_str, GL_FRAGMENT_SHADER),
@@ -467,13 +461,12 @@ class SimpleImposterViewer:
                         varying vec4 surface_color;
                         varying float radius;
                         varying vec3 center;
-                        // varying vec3 tap_qec_qeb;
                         varying float tAP, qe_c, qe_half_b;
                         varying vec3 qe_undot_half_a;
                         varying vec3 downscaled_axis; // For truncating ends
                         
                         // defined in imposter_fns120.glsl
-                        void cone_nonlinear_coeffs(in vec3 pos, in float tAP, in float qe_c, in float qe_half_b, in vec3 qe_undot_half_a,out float qe_half_a, out float discriminant);
+                        void cone_nonlinear_coeffs(in float tAP, in float qe_c, in float qe_half_b, in vec3 qe_undot_half_a,out float qe_half_a, out float discriminant);
                         vec3 cone_surface_from_coeffs(in vec3 pos, in float qe_half_b, in float qe_half_a, in float discriminant);
                         vec3 light_rig(vec4 pos, vec3 normal, vec3 color);
                         float fragDepthFromEyeXyz(vec3 eyeXyz);
@@ -484,7 +477,7 @@ class SimpleImposterViewer:
 
                             // Cull unneeded fragments by setting up quadratic formula
                             float qe_half_a, discriminant;
-                            cone_nonlinear_coeffs(pos, tAP, qe_c, qe_half_b, qe_undot_half_a,
+                            cone_nonlinear_coeffs(tAP, qe_c, qe_half_b, qe_undot_half_a,
                                 qe_half_a, discriminant);
                             if (discriminant <= 0)
                                 discard; // Point does not intersect cone

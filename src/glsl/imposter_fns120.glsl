@@ -12,54 +12,37 @@
 
 // First phase of cone imposter shading: Compute linear coefficients in vertex shader,
 // to ease burden on fragment shader
-void cone_linear_coeffs1(vec3 center, float radius, vec3 axis, float taper, vec3 pos,
-        out float tAP, out float qe_c, out float qe_half_b) 
+void cone_linear_coeffs(in vec3 center, in float radius, in vec3 axis, in float taper, in vec3 pos,
+        out float tAP, out float qe_c, out float qe_half_b, out vec3 qe_undot_half_a) 
 {
-    // TODO Copying from cinemol until debugged
-    vec3 p1 = center + axis;
-    vec3 p2 = center - axis;
-    vec3 middle = center;
-    vec3 bondVec = p2 - p1; // -2 * axis?
-    float bondLengthSqr = dot(bondVec, bondVec);
-    float maxCDistSqr = 1.00 * (0.25 * bondLengthSqr * radius * radius); // TODO - not so for cone
-    vec3 cylCen = 0.5 * (p1 + p2); // center?
-    vec3 cylAxis = normalize(-axis);
+    // x = Unit cylinder axis
+    vec3 x = normalize(-axis); // minus is important...
     
     // "A" parameter of quadratic formula is nonlinear, but has two linear components
-    // vec3 a = normalize(axis);
+    // TODO - can we use scalar instead of vector?
+    qe_undot_half_a = cross(pos, x); // (1)
     
     // "B" parameter
-    tAP = taper * dot(cylAxis, pos); // (2)
-    float tAC = taper * dot(cylAxis, cylCen);
-    vec3 x = cylAxis;
+    tAP = taper * dot(x, pos); // (2)
+    float tAC = taper * dot(x, center);
     vec3 qe_undot_b_part = vec3(
-        dot(cylCen, vec3(-x.y*x.y -x.z*x.z, x.x*x.y, x.x*x.z)),
-        dot(cylCen, vec3( x.x*x.y, -x.x*x.x - x.z*x.z, x.y*x.z)),
-        dot(cylCen, vec3( x.x*x.z,  x.y*x.z, -x.x*x.x - x.y*x.y)));
+        dot(center, vec3(-x.y*x.y -x.z*x.z, x.x*x.y, x.x*x.z)),
+        dot(center, vec3( x.x*x.y, -x.x*x.x - x.z*x.z, x.y*x.z)),
+        dot(center, vec3( x.x*x.z,  x.y*x.z, -x.x*x.x - x.y*x.y)));
     qe_half_b = dot(pos, qe_undot_b_part) - tAP * (radius - tAC);
     
     // "C" parameter of quadratic formula is complicated, but is constant wrt position
-    vec3 cxa = cross(cylCen, cylAxis);
+    vec3 cxa = cross(center, x);
     qe_c = dot(cxa, cxa) - radius * radius + (2*radius - tAC)*tAC;
-}
-
-// First phase of cone imposter shading: Compute linear coefficients in vertex shader,
-// to ease burden on fragment shader
-void cone_linear_coeffs2(vec3 center, float radius, vec3 axis, float taper, vec3 pos,
-        out vec3 qe_undot_half_a) 
-{
-    // "A" parameter of quadratic formula is nonlinear, but has two linear components
-    vec3 cylAxis = normalize(-axis);
-    qe_undot_half_a = cross(pos, cylAxis); // (1)
 }
 
 // Second phase of sphere imposter shading: Compute nonlinear coefficients
 // in fragment shader, including discriminant used to reject fragments.
-void cone_nonlinear_coeffs(in vec3 pos, in float tAP, in float qe_c, in float qe_half_b, in vec3 qe_undot_half_a,
+void cone_nonlinear_coeffs(in float tAP, in float qe_c, in float qe_half_b, in vec3 qe_undot_half_a,
     out float qe_half_a, out float discriminant) 
 {
     // set up quadratic formula for sphere surface ray casting
-    qe_half_a = dot(qe_undot_half_a, qe_undot_half_a) - tAP * tAP; // TODO - restore non-cylinder component
+    qe_half_a = dot(qe_undot_half_a, qe_undot_half_a) - tAP * tAP;
     discriminant = qe_half_b * qe_half_b - qe_half_a * qe_c;
 }
 
