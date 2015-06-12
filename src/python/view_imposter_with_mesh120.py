@@ -480,10 +480,6 @@ class SimpleImposterViewer:
                         varying float normalScale;
                         
                         // prototypes defined in imposter_fns120.glsl
-                        void cone_nonlinear_coeffs(in float tAP, in float qe_c, in float qe_half_b, in vec3 qe_undot_half_a,out float qe_half_a, out float discriminant);
-                        vec3 cone_surface_from_coeffs(in vec3 pos, in float qe_half_b, in float qe_half_a, in float discriminant);
-                        vec3 light_rig(vec4 pos, vec3 normal, vec3 color);
-                        float fragDepthFromEyeXyz(vec3 eyeXyz);
                         bool cone_imposter_frag(
                                 in vec3 surface_color,
                                 in vec3 pos, // location of imposter geometry fragment
@@ -501,32 +497,23 @@ class SimpleImposterViewer:
                         
                         void main() {
 
-                            // Cull unneeded fragments by setting up quadratic formula
-                            float qe_half_a, discriminant;
-                            cone_nonlinear_coeffs(tAP, qe_c, qe_half_b, qe_undot_half_a,
-                                qe_half_a, discriminant);
-                            if (discriminant <= 0)
-                                discard; // Point does not intersect cone
-
-                            // Compute projected surface of cone
-                            vec3 s = cone_surface_from_coeffs(pos, qe_half_b, qe_half_a, discriminant);
-                            vec3 cs = s - center;
-                            
-                            // Truncate cone geometry to prescribed ends
-                            if ( abs(dot(cs, aHat)) > halfConeLength ) 
+                            if ( ! cone_imposter_frag(
+                                    surface_color.rgb,
+                                    pos,
+                                    aHat,
+                                    halfConeLength,
+                                    center,
+                                    taper,
+                                    tAP,
+                                    qe_c,
+                                    qe_half_b,
+                                    qe_undot_half_a,
+                                    normalScale,
+                                    gl_FragColor,
+                                    gl_FragDepth) ) 
+                            {
                                 discard;
-                            
-                            // Compute surface normal vector, for shading
-                            vec3 n1 = normalize( cs - dot(cs, aHat)*aHat );
-                            vec3 normal = normalScale * (n1 + taper * aHat);
-
-                            // illuminate the cone surface
-                            gl_FragColor = vec4(
-                                light_rig(vec4(s, 1), normal, surface_color.rgb),
-                                1);
-
-                            // Put computed cone surface Z depth into depth buffer
-                            gl_FragDepth = fragDepthFromEyeXyz(s);
+                            }
                         }
                         """, GL_FRAGMENT_SHADER)
             )
