@@ -12,6 +12,7 @@ from OpenGL.GLUT import *
 from OpenGL.GLU import *
 from OpenGL.GL import shaders
 import sys
+import os
 import math
 
 # Some api in the chain is translating the keystrokes to this octal string
@@ -181,7 +182,7 @@ class Sphere():
     def __init__(self, center, radius):
         self.center = center
         self.radius = radius
-        
+
     def generateBoundingGeometryImmediate(self):
         "This method should be developed into a host imposter geometry example"
         # Draw bounding cube geometry, three faces at a time
@@ -212,6 +213,17 @@ class Sphere():
             # Position attribute always contains sphere center and radius
             glVertex4f(x, y, z, self.radius)        
         glEnd()
+
+
+class SphereSet(list):
+    def __init__(self):
+        list.__init__(self)
+        self.mode = "imposters"
+
+    def drawGL(self):
+        shaders.glUseProgram(self.sphere_shader)
+        for sphere in self:
+            sphere.generateBoundingGeometryImmediate()
 
 
 class SimpleImposterViewer:
@@ -264,10 +276,11 @@ class SimpleImposterViewer:
                 glMaterialfv(GL_FRONT, GL_SPECULAR, GLfloat_4(0.8, 0.8, 0.8, 1.0) )
                 glMaterialf(GL_FRONT, GL_SHININESS, 100.0) # max is 128 on cyberbear
             
+            source_path = os.path.dirname(os.path.abspath(__file__))
             # Read utility functions from file
-            with open ("../glsl/imposter_fns_frag120.glsl", "r") as myfile:
+            with open (os.path.join(source_path, "../glsl/imposter_fns_frag120.glsl"), "r") as myfile:
                 frag_fns_str = myfile.read()
-            with open ("../glsl/imposter_fns120.glsl", "r") as myfile:
+            with open (os.path.join(source_path, "../glsl/imposter_fns120.glsl"), "r") as myfile:
                 glsl_fns_str = myfile.read()
                 
             # Create a test shader for debugging, which just colors everything green.
@@ -408,15 +421,15 @@ class SimpleImposterViewer:
                         varying float radius;
                         varying float taper;
                         varying vec3 axis;
-                        varying vec3 tap_qec_qeb;
+                        // varying vec3 tap_qec_qeb;
+                        varying float tAP, qe_c, qe_half_b;
                         varying vec3 qe_undot_half_a;
                         varying vec3 center;
                         varying vec3 downscaled_axis; // For truncating ends
                         
                         // defined in imposter_fns120.glsl
-                        // vec3 cone_linear_coeffs1(vec3 center, float radius, vec3 axis, float taper, vec3 pos);
                         void cone_linear_coeffs1(vec3 center, float radius, vec3 axis, float taper, vec3 pos,
-                                out vec3 tap_qec_qeb);
+                                out float tAP, out float qe_c, out float qe_half_b); 
                         void cone_linear_coeffs2(vec3 center, float radius, vec3 axis, float taper, vec3 pos,
                                 out vec3 qe_undot_half_a);
                         // vec3 cone_linear_coeffs2(vec3 center, float radius, vec3 axis, float taper, vec3 pos);
@@ -438,7 +451,8 @@ class SimpleImposterViewer:
                             downscaled_axis = axis / dot(axis, axis);
                             
                             taper = gl_MultiTexCoord0.w;
-                            cone_linear_coeffs1(center, radius, axis, taper, pos1.xyz/pos1.w, tap_qec_qeb);
+                            cone_linear_coeffs1(center, radius, axis, taper, pos1.xyz/pos1.w, 
+                                tAP, qe_c, qe_half_b);
                             cone_linear_coeffs2(center, radius, axis, taper, pos1.xyz/pos1.w, qe_undot_half_a);
                         }
                         """, GL_VERTEX_SHADER), 
@@ -453,13 +467,14 @@ class SimpleImposterViewer:
                         varying vec4 surface_color;
                         varying float radius;
                         varying vec3 center;
-                        varying vec3 tap_qec_qeb;
+                        // varying vec3 tap_qec_qeb;
+                        varying float tAP, qe_c, qe_half_b;
                         varying vec3 qe_undot_half_a;
                         varying vec3 downscaled_axis; // For truncating ends
                         
                         // defined in imposter_fns120.glsl
-                        void cone_nonlinear_coeffs(vec3 pos, vec3 tap_qec_qeb, vec3 qe_undot_half_a, out float qe_half_a, out float discriminant);
-                        void cone_surface_from_coeffs(in vec3 pos, in vec3 tap_qec_qeb, in float qe_half_a, in float discriminant, out vec3 surface_pos);
+                        void cone_nonlinear_coeffs(in vec3 pos, in float tAP, in float qe_c, in float qe_half_b, in vec3 qe_undot_half_a,out float qe_half_a, out float discriminant);
+                        vec3 cone_surface_from_coeffs(in vec3 pos, in float qe_half_b, in float qe_half_a, in float discriminant);
                         vec3 light_rig(vec4 pos, vec3 normal, vec3 color);
                         float fragDepthFromEyeXyz(vec3 eyeXyz);
                         
@@ -469,14 +484,13 @@ class SimpleImposterViewer:
 
                             // Cull unneeded fragments by setting up quadratic formula
                             float qe_half_a, discriminant;
-                            cone_nonlinear_coeffs(pos, tap_qec_qeb, qe_undot_half_a,
+                            cone_nonlinear_coeffs(pos, tAP, qe_c, qe_half_b, qe_undot_half_a,
                                 qe_half_a, discriminant);
                             if (discriminant <= 0)
                                 discard; // Point does not intersect cone
 
                             // Compute projected surface of cone
-                            vec3 s;
-                            cone_surface_from_coeffs(pos, tap_qec_qeb, qe_half_a, discriminant, s);
+                            vec3 s = cone_surface_from_coeffs(pos, qe_half_b, qe_half_a, discriminant);
                             
                             // Truncate cone geometry to prescribed ends
                             if ( abs(dot(s - center, downscaled_axis)) > 1.0 ) 
@@ -526,6 +540,8 @@ class SimpleImposterViewer:
             glTranslatef(0.0,0.0,-6.0);             # MoveInto The Screen
             glRotatef(self.yrot, 0.0, 1.0, 0.0);             # Rotate The Pyramid On It's Y Axis
             
+            
+            
             # Leftmost sphere is shaded using the fixed function pipeline
             glTranslatef(-1.6,0.0,0);             # Move Left
             # drawTriangle()
@@ -536,19 +552,21 @@ class SimpleImposterViewer:
 
             # Middle sphere is an imposter            
             glTranslatef( 1.6,0.0,0);
-                         # Move Right
+            # Move Right
             glColor3f(0.2, 0.5, 0.8)
             self.renderSphereImposterImmediate(Sphere( [0, -0.2, 0], 1.1) )
 
             glColor3f(0.1, 0.7, 0.1)
             self.renderSphereImposterImmediate(Sphere( [-0.5, -1.2, 0], 0.8) )
 
-            sph1 = Sphere([0, 1.1, 0], 0.5)
+            sph1 = Sphere([0, 1.1, 0], 0.9)
             sph2 = Sphere([1.2, 1.5, 0], 0.5)
             self.renderSphereImposterImmediate(sph1)
             self.renderSphereImposterImmediate(sph2)
             cone = ConeSegment(sph1, sph2)
             self.renderConeImposterImmediate(cone)
+            
+            # self.imposter_spheres.drawGL()
 
             # Right sphere is a standard mesh, shaded with GLSL
             glTranslatef( 1.6, 0.0, 0);             # Move Right
@@ -578,10 +596,21 @@ class SimpleImposterViewer:
             # If escape is pressed, kill everything.
             if args[0] == ESCAPE:
                 sys.exit()
+                pass
         
-        def show(self):
+        def show(self, files):
+            # Maybe read swc file from command line
+            if len(files) > 0:
+                self.swc_files = files
+            else:
+                self.swc_files = None
+
+            self.imposter_spheres = SphereSet()
+            self.imposter_spheres.append(Sphere([0, 2.1, 0], 0.9))
+            self.imposter_spheres.append(Sphere([1.2, 2.5, 0], 0.5))
+
             # pass arguments to init
-            glutInit(sys.argv)
+            glutInit()
         
             # Select type of Display mode:   
             #  Double buffer 
@@ -604,7 +633,7 @@ class SimpleImposterViewer:
             # if it weren't for the global declaration at the start of main.
             self.window = glutCreateWindow("SWC imposter demo")
         
-               # Register the drawing function with glut, BUT in Python land, at least using PyOpenGL, we need to
+            # Register the drawing function with glut, BUT in Python land, at least using PyOpenGL, we need to
             # set the function pointer and invoke a function to actually register the callback, otherwise it
             # would be very much like the C version of the code.    
             glutDisplayFunc(self.DrawGLScene)
@@ -629,8 +658,17 @@ class SimpleImposterViewer:
 
 # Print message to console, and kick off the main to get it rolling.
 if __name__ == "__main__":
-    print "Hit ESC key to quit."
-    v = SimpleImposterViewer()
-    v.show()
+    try:
+        ## your code, typically one function call
+        print "Hit ESC key to quit."
+        v = SimpleImposterViewer()
+        v.show(sys.argv[1:]) 
+    except:
+        print sys.exc_info()[0]
+        print traceback.format_exc()
+    finally:
+        print "Press Enter to continue ..." 
+        raw_input()
+
     
 
