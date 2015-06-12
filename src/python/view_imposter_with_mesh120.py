@@ -503,7 +503,7 @@ class SimpleImposterViewer:
                                 discard;
                             
                             // Compute surface normal vector, for shading
-                            vec3 n1 = normalize( cs - dot(cs,aHat)*aHat );
+                            vec3 n1 = normalize( cs - dot(cs, aHat)*aHat );
                             vec3 normal = normalScale * (n1 + taper * aHat);
 
                             // illuminate the cone surface

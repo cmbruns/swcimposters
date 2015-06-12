@@ -19,7 +19,7 @@ void cone_linear_coeffs(in vec3 center, in float radius, in vec3 axis, in float 
     vec3 x = normalize(-axis); // minus is important...
     
     // "A" parameter of quadratic formula is nonlinear, but has two linear components
-    // TODO - can we use scalar instead of vector?
+    // Q: Can we use scalar instead of vector? A: No
     qe_undot_half_a = cross(pos, x); // (1)
     
     // "B" parameter
@@ -57,7 +57,6 @@ vec3 cone_surface_from_coeffs(in vec3 pos, in float qe_half_b, in float qe_half_
     vec3 surface_pos = alpha1 * pos;
     return surface_pos;
 }
-
 
 // SPHERES
 // Methods for ray casting sphere geometry from imposter geometry
