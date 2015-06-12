@@ -408,24 +408,28 @@ class SimpleImposterViewer:
                         """, GL_FRAGMENT_SHADER)
             )
             
-            # Create shader for sphere imposters        
+            # Create shader for cone imposters        
             self.cone_shader = shaders.compileProgram(
                 shaders.compileShader(glsl_fns_str, GL_VERTEX_SHADER),
                 shaders.compileShader(
                         """
                         #version 120
                         
-                        varying vec4 pos1;
+                        varying vec3 pos;
                         varying vec4 surface_color;
                         
+                        // primary cone parameters
                         varying float radius;
+                        varying vec3 center;
                         varying float taper;
-                        varying vec3 axis;
+                        varying float halfConeLength; // For truncating ends
+                        varying vec3 aHat; // unit cone axis
+                        
+                        // derived linear ray casting parameters, best computed in vertex/geometry shader
                         varying float tAP, qe_c, qe_half_b;
                         varying vec3 qe_undot_half_a;
-                        varying vec3 center;
-                        varying vec3 downscaled_axis; // For truncating ends
                         
+                        // function prototypes from imposter_fns120.glsl
                         void cone_linear_coeffs(vec3 center, float radius, vec3 axis, float taper, vec3 pos,
                             out float tAP, out float qe_c, out float qe_half_b, out vec3 qe_undot_half_a);
 
@@ -434,7 +438,7 @@ class SimpleImposterViewer:
                             vec4 pos_local = vec4(gl_Vertex.xyz + gl_Normal.xyz, 1);
                             radius = gl_Vertex.w;
                             
-                            pos1 = gl_ModelViewMatrix * pos_local;
+                            vec4 pos1 = gl_ModelViewMatrix * pos_local;
                             gl_Position = gl_ProjectionMatrix * pos1;
                             surface_color = gl_Color.rgba;
 
@@ -442,12 +446,15 @@ class SimpleImposterViewer:
                             center = c.xyz/c.w;
                             
                             // Cone axis and taper are shoehorned into the texture coordinate
-                            axis = (gl_ModelViewMatrix * vec4(gl_MultiTexCoord0.xyz, 0)).xyz;
-                            downscaled_axis = axis / dot(axis, axis);
+                            vec3 axis = (gl_ModelViewMatrix * vec4(gl_MultiTexCoord0.xyz, 0)).xyz;
+                            halfConeLength = length(axis);
                             taper = gl_MultiTexCoord0.w;
                             
-                            cone_linear_coeffs(center, radius, axis, taper, pos1.xyz/pos1.w, 
+                            pos = pos1.xyz/pos1.w;
+                            cone_linear_coeffs(center, radius, axis, taper, pos, 
                                 tAP, qe_c, qe_half_b, qe_undot_half_a);
+
+                            aHat = normalize(axis);
                         }
                         """, GL_VERTEX_SHADER), 
                 shaders.compileShader(glsl_fns_str, GL_FRAGMENT_SHADER),
@@ -455,25 +462,27 @@ class SimpleImposterViewer:
                         """
                         #version 120
 
-                        varying vec4 pos1;
-                        varying float taper;
-                        varying vec3 axis;
+                        varying vec3 pos;
                         varying vec4 surface_color;
+                        
+                        // primary cone parameters
                         varying float radius;
                         varying vec3 center;
+                        varying float taper;
+                        varying float halfConeLength; // For truncating ends
+                        varying vec3 aHat; // unit cone axis
+                        
+                        // derived linear ray casting parameters, best computed in vertex/geometry shader
                         varying float tAP, qe_c, qe_half_b;
                         varying vec3 qe_undot_half_a;
-                        varying vec3 downscaled_axis; // For truncating ends
                         
-                        // defined in imposter_fns120.glsl
+                        // prototypes defined in imposter_fns120.glsl
                         void cone_nonlinear_coeffs(in float tAP, in float qe_c, in float qe_half_b, in vec3 qe_undot_half_a,out float qe_half_a, out float discriminant);
                         vec3 cone_surface_from_coeffs(in vec3 pos, in float qe_half_b, in float qe_half_a, in float discriminant);
                         vec3 light_rig(vec4 pos, vec3 normal, vec3 color);
                         float fragDepthFromEyeXyz(vec3 eyeXyz);
                         
                         void main() {
-                            // Get XYZ location of imposter geometry fragment
-                            vec3 pos = pos1.xyz/pos1.w;
 
                             // Cull unneeded fragments by setting up quadratic formula
                             float qe_half_a, discriminant;
@@ -484,17 +493,18 @@ class SimpleImposterViewer:
 
                             // Compute projected surface of cone
                             vec3 s = cone_surface_from_coeffs(pos, qe_half_b, qe_half_a, discriminant);
+                            vec3 cs = s - center;
                             
                             // Truncate cone geometry to prescribed ends
-                            if ( abs(dot(s - center, downscaled_axis)) > 1.0 ) 
+                            if ( abs(dot(cs, aHat)) > halfConeLength ) 
                                 discard;
                             
                             // Compute surface normal vector, for shading
                             // TODO - simplify normal expression to use fewer "normalize"s
-                            vec3 aHat = normalize(axis); // cone axis
-                            vec3 yHat = normalize(cross(s - center, aHat)); // perp. to cone axis and surface position
-                            vec3 sHat = cross(aHat, yHat); // perp. to cone axis, toward surface position
-                            vec3 normal = normalize( sHat + taper * aHat );
+                            vec3 yHat = cross(cs, aHat); // perp. to cone axis and surface position
+                            vec3 sHat = normalize(cross(aHat, yHat)); // perp. to cone axis, toward surface position
+                            vec3 normal = normalize( sHat + taper * aHat ); // looks OK
+                            // vec3 normal = normalize( cs - dot(cs,aHat)*aHat ); // looks wrong
 
                             // illuminate the cone surface
                             gl_FragColor = vec4(
