@@ -484,6 +484,20 @@ class SimpleImposterViewer:
                         vec3 cone_surface_from_coeffs(in vec3 pos, in float qe_half_b, in float qe_half_a, in float discriminant);
                         vec3 light_rig(vec4 pos, vec3 normal, vec3 color);
                         float fragDepthFromEyeXyz(vec3 eyeXyz);
+                        bool cone_imposter_frag(
+                                in vec3 surface_color,
+                                in vec3 pos, // location of imposter geometry fragment
+                                in vec3 aHat, // unit cone axis
+                                in float halfConeLength,
+                                in vec3 center,
+                                in float taper,
+                                in float tAP,
+                                in float qe_c,
+                                in float qe_half_b,
+                                in vec3 qe_undot_half_a, 
+                                in float normalScale,
+                                out vec4 fragColor,
+                                out float fragDepth);
                         
                         void main() {
 
