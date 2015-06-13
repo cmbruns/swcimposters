@@ -250,19 +250,19 @@ class SimpleImposterViewer:
                 glLightfv(GL_LIGHT1, GL_DIFFUSE, GLfloat_3(.8,.8,.8))
                 glLightfv(GL_LIGHT1, GL_SPECULAR, GLfloat_3(0,0,0) )
                 glMaterialfv(GL_FRONT, GL_SPECULAR, GLfloat_4(0,0,0) )
-                glMateriali(GL_FRONT, GL_SHININESS, 100)                
+                glMateriali(GL_FRONT, GL_SHININESS, 40)                
             elif self.ambientOnly:
                 glLightfv( GL_LIGHT1, GL_AMBIENT, GLfloat_4(0.2,0.2,0.2, 1.0) )
                 glLightfv(GL_LIGHT1, GL_DIFFUSE, GLfloat_3(0,0,0) )
                 glLightfv(GL_LIGHT1, GL_SPECULAR, GLfloat_3(0,0,0) )
                 glMaterialfv(GL_FRONT, GL_SPECULAR, GLfloat_4(0,0,0) )
-                glMateriali(GL_FRONT, GL_SHININESS, 100)                
+                glMateriali(GL_FRONT, GL_SHININESS, 40)                
             else:
                 glLightfv( GL_LIGHT1, GL_AMBIENT, GLfloat_4(0.2,0.2,0.2,0) )
                 glLightfv(GL_LIGHT1, GL_DIFFUSE, GLfloat_3(.8,.8,.8))
                 glLightfv(GL_LIGHT1, GL_SPECULAR, GLfloat_3(.8,.8,.8) )
                 glMaterialfv(GL_FRONT, GL_SPECULAR, GLfloat_4(0.8, 0.8, 0.8, 1.0) )
-                glMaterialf(GL_FRONT, GL_SHININESS, 100.0) # max is 128 on cyberbear
+                glMaterialf(GL_FRONT, GL_SHININESS, 40.0) # max is 128 on cyberbear
             
             # Read utility functions from file
             with open ("../glsl/imposter_fns_frag120.glsl", "r") as myfile:
@@ -543,8 +543,8 @@ class SimpleImposterViewer:
             glColor3f(0.1, 0.7, 0.1)
             self.renderSphereImposterImmediate(Sphere( [-0.5, -1.2, 0], 0.8) )
 
-            sph1 = Sphere([0, 1.1, 0], 0.5)
-            sph2 = Sphere([1.2, 1.5, 0], 0.5)
+            sph1 = Sphere([0, 1.1, 0], 0.3)
+            sph2 = Sphere([1.2, 1.5, 0], 0.9)
             self.renderSphereImposterImmediate(sph1)
             self.renderSphereImposterImmediate(sph2)
             cone = ConeSegment(sph1, sph2)
