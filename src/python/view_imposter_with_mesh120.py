@@ -12,6 +12,7 @@ from OpenGL.GLUT import *
 from OpenGL.GLU import *
 from OpenGL.GL import shaders
 import sys
+import os
 import math
 
 # Some api in the chain is translating the keystrokes to this octal string
@@ -181,7 +182,7 @@ class Sphere():
     def __init__(self, center, radius):
         self.center = center
         self.radius = radius
-        
+
     def generateBoundingGeometryImmediate(self):
         "This method should be developed into a host imposter geometry example"
         # Draw bounding cube geometry, three faces at a time
@@ -212,6 +213,17 @@ class Sphere():
             # Position attribute always contains sphere center and radius
             glVertex4f(x, y, z, self.radius)        
         glEnd()
+
+
+class SphereSet(list):
+    def __init__(self):
+        list.__init__(self)
+        self.mode = "imposters"
+
+    def drawGL(self):
+        shaders.glUseProgram(self.sphere_shader)
+        for sphere in self:
+            sphere.generateBoundingGeometryImmediate()
 
 
 class SimpleImposterViewer:
@@ -250,24 +262,25 @@ class SimpleImposterViewer:
                 glLightfv(GL_LIGHT1, GL_DIFFUSE, GLfloat_3(.8,.8,.8))
                 glLightfv(GL_LIGHT1, GL_SPECULAR, GLfloat_3(0,0,0) )
                 glMaterialfv(GL_FRONT, GL_SPECULAR, GLfloat_4(0,0,0) )
-                glMateriali(GL_FRONT, GL_SHININESS, 40)                
+                glMateriali(GL_FRONT, GL_SHININESS, 100)                
             elif self.ambientOnly:
                 glLightfv( GL_LIGHT1, GL_AMBIENT, GLfloat_4(0.2,0.2,0.2, 1.0) )
                 glLightfv(GL_LIGHT1, GL_DIFFUSE, GLfloat_3(0,0,0) )
                 glLightfv(GL_LIGHT1, GL_SPECULAR, GLfloat_3(0,0,0) )
                 glMaterialfv(GL_FRONT, GL_SPECULAR, GLfloat_4(0,0,0) )
-                glMateriali(GL_FRONT, GL_SHININESS, 40)                
+                glMateriali(GL_FRONT, GL_SHININESS, 100)                
             else:
                 glLightfv( GL_LIGHT1, GL_AMBIENT, GLfloat_4(0.2,0.2,0.2,0) )
                 glLightfv(GL_LIGHT1, GL_DIFFUSE, GLfloat_3(.8,.8,.8))
                 glLightfv(GL_LIGHT1, GL_SPECULAR, GLfloat_3(.8,.8,.8) )
                 glMaterialfv(GL_FRONT, GL_SPECULAR, GLfloat_4(0.8, 0.8, 0.8, 1.0) )
-                glMaterialf(GL_FRONT, GL_SHININESS, 40.0) # max is 128 on cyberbear
+                glMaterialf(GL_FRONT, GL_SHININESS, 100.0) # max is 128 on cyberbear
             
+            source_path = os.path.dirname(os.path.abspath(__file__))
             # Read utility functions from file
-            with open ("../glsl/imposter_fns_frag120.glsl", "r") as myfile:
+            with open (os.path.join(source_path, "../glsl/imposter_fns_frag120.glsl"), "r") as myfile:
                 frag_fns_str = myfile.read()
-            with open ("../glsl/imposter_fns120.glsl", "r") as myfile:
+            with open (os.path.join(source_path, "../glsl/imposter_fns120.glsl"), "r") as myfile:
                 glsl_fns_str = myfile.read()
                 
             # Create a test shader for debugging, which just colors everything green.
@@ -395,51 +408,55 @@ class SimpleImposterViewer:
                         """, GL_FRAGMENT_SHADER)
             )
             
-            # Create shader for sphere imposters        
+            # Create shader for cone imposters        
             self.cone_shader = shaders.compileProgram(
                 shaders.compileShader(glsl_fns_str, GL_VERTEX_SHADER),
                 shaders.compileShader(
                         """
                         #version 120
                         
-                        varying vec4 pos1;
+                        varying vec3 pos;
                         varying vec4 surface_color;
                         
+                        // primary cone parameters
                         varying float radius;
-                        varying float taper;
-                        varying vec3 axis;
-                        varying vec3 tap_qec_qeb;
-                        varying vec3 qe_undot_half_a;
                         varying vec3 center;
-                        varying vec3 downscaled_axis; // For truncating ends
+                        varying float taper;
+                        varying float halfConeLength; // For truncating ends
+                        varying vec3 aHat; // unit cone axis
                         
-                        // defined in imposter_fns120.glsl
-                        // vec3 cone_linear_coeffs1(vec3 center, float radius, vec3 axis, float taper, vec3 pos);
-                        void cone_linear_coeffs1(vec3 center, float radius, vec3 axis, float taper, vec3 pos,
-                                out vec3 tap_qec_qeb);
-                        void cone_linear_coeffs2(vec3 center, float radius, vec3 axis, float taper, vec3 pos,
-                                out vec3 qe_undot_half_a);
-                        // vec3 cone_linear_coeffs2(vec3 center, float radius, vec3 axis, float taper, vec3 pos);
+                        // derived linear ray casting parameters, best computed in vertex/geometry shader
+                        varying float tAP, qe_c, qe_half_b;
+                        varying vec3 qe_undot_half_a;
+                        varying float normalScale;
+                        
+                        // function prototypes from imposter_fns120.glsl
+                        void cone_linear_coeffs(vec3 center, float radius, vec3 axis, float taper, vec3 pos,
+                            out float tAP, out float qe_c, out float qe_half_b, out vec3 qe_undot_half_a);
 
                         void main() {
                             // imposter geometry is sum of sphere center and normal
                             vec4 pos_local = vec4(gl_Vertex.xyz + gl_Normal.xyz, 1);
                             radius = gl_Vertex.w;
                             
-                            pos1 = gl_ModelViewMatrix * pos_local;
+                            vec4 pos1 = gl_ModelViewMatrix * pos_local;
                             gl_Position = gl_ProjectionMatrix * pos1;
                             surface_color = gl_Color.rgba;
 
                             vec4 c = gl_ModelViewMatrix * vec4(gl_Vertex.xyz, 1);
                             center = c.xyz/c.w;
+                            
                             // Cone axis and taper are shoehorned into the texture coordinate
-                            
-                            axis = (gl_ModelViewMatrix * vec4(gl_MultiTexCoord0.xyz, 0)).xyz;
-                            downscaled_axis = axis / dot(axis, axis);
-                            
+                            vec3 axis = (gl_ModelViewMatrix * vec4(gl_MultiTexCoord0.xyz, 0)).xyz;
+                            halfConeLength = length(axis);
                             taper = gl_MultiTexCoord0.w;
-                            cone_linear_coeffs1(center, radius, axis, taper, pos1.xyz/pos1.w, tap_qec_qeb);
-                            cone_linear_coeffs2(center, radius, axis, taper, pos1.xyz/pos1.w, qe_undot_half_a);
+                            
+                            pos = pos1.xyz/pos1.w;
+                            cone_linear_coeffs(center, radius, axis, taper, pos, 
+                                tAP, qe_c, qe_half_b, qe_undot_half_a);
+
+                            aHat = normalize(axis);
+                            normalScale  = 1.0 / sqrt(1.0 + taper*taper);
                         }
                         """, GL_VERTEX_SHADER), 
                 shaders.compileShader(glsl_fns_str, GL_FRAGMENT_SHADER),
@@ -447,55 +464,56 @@ class SimpleImposterViewer:
                         """
                         #version 120
 
-                        varying vec4 pos1;
-                        varying float taper;
-                        varying vec3 axis;
+                        varying vec3 pos;
                         varying vec4 surface_color;
+                        
+                        // primary cone parameters
                         varying float radius;
                         varying vec3 center;
-                        varying vec3 tap_qec_qeb;
-                        varying vec3 qe_undot_half_a;
-                        varying vec3 downscaled_axis; // For truncating ends
+                        varying float taper;
+                        varying float halfConeLength; // For truncating ends
+                        varying vec3 aHat; // unit cone axis
                         
-                        // defined in imposter_fns120.glsl
-                        void cone_nonlinear_coeffs(vec3 pos, vec3 tap_qec_qeb, vec3 qe_undot_half_a, out float qe_half_a, out float discriminant);
-                        void cone_surface_from_coeffs(in vec3 pos, in vec3 tap_qec_qeb, in float qe_half_a, in float discriminant, out vec3 surface_pos);
-                        vec3 light_rig(vec4 pos, vec3 normal, vec3 color);
-                        float fragDepthFromEyeXyz(vec3 eyeXyz);
+                        // derived linear ray casting parameters, best computed in vertex/geometry shader
+                        varying float tAP, qe_c, qe_half_b;
+                        varying vec3 qe_undot_half_a;
+                        varying float normalScale;
+                        
+                        // prototypes defined in imposter_fns120.glsl
+                        bool cone_imposter_frag(
+                                in vec3 surface_color,
+                                in vec3 pos, // location of imposter geometry fragment
+                                in vec3 aHat, // unit cone axis
+                                in float halfConeLength,
+                                in vec3 center,
+                                in float taper,
+                                in float tAP,
+                                in float qe_c,
+                                in float qe_half_b,
+                                in vec3 qe_undot_half_a, 
+                                in float normalScale,
+                                out vec4 fragColor,
+                                out float fragDepth);
                         
                         void main() {
-                            // Get XYZ location of imposter geometry fragment
-                            vec3 pos = pos1.xyz/pos1.w;
 
-                            // Cull unneeded fragments by setting up quadratic formula
-                            float qe_half_a, discriminant;
-                            cone_nonlinear_coeffs(pos, tap_qec_qeb, qe_undot_half_a,
-                                qe_half_a, discriminant);
-                            if (discriminant <= 0)
-                                discard; // Point does not intersect cone
-
-                            // Compute projected surface of cone
-                            vec3 s;
-                            cone_surface_from_coeffs(pos, tap_qec_qeb, qe_half_a, discriminant, s);
-                            
-                            // Truncate cone geometry to prescribed ends
-                            if ( abs(dot(s - center, downscaled_axis)) > 1.0 ) 
+                            if ( ! cone_imposter_frag(
+                                    surface_color.rgb,
+                                    pos,
+                                    aHat,
+                                    halfConeLength,
+                                    center,
+                                    taper,
+                                    tAP,
+                                    qe_c,
+                                    qe_half_b,
+                                    qe_undot_half_a,
+                                    normalScale,
+                                    gl_FragColor,
+                                    gl_FragDepth) ) 
+                            {
                                 discard;
-                            
-                            // Compute surface normal vector, for shading
-                            // TODO - simplify normal expression to use fewer "normalize"s
-                            vec3 aHat = normalize(axis); // cone axis
-                            vec3 yHat = normalize(cross(s - center, aHat)); // perp. to cone axis and surface position
-                            vec3 sHat = cross(aHat, yHat); // perp. to cone axis, toward surface position
-                            vec3 normal = normalize( sHat + taper * aHat );
-
-                            // illuminate the cone surface
-                            gl_FragColor = vec4(
-                                light_rig(vec4(s, 1), normal, surface_color.rgb),
-                                1);
-
-                            // Put computed cone surface Z depth into depth buffer
-                            gl_FragDepth = fragDepthFromEyeXyz(s);
+                            }
                         }
                         """, GL_FRAGMENT_SHADER)
             )
@@ -526,6 +544,8 @@ class SimpleImposterViewer:
             glTranslatef(0.0,0.0,-6.0);             # MoveInto The Screen
             glRotatef(self.yrot, 0.0, 1.0, 0.0);             # Rotate The Pyramid On It's Y Axis
             
+            
+            
             # Leftmost sphere is shaded using the fixed function pipeline
             glTranslatef(-1.6,0.0,0);             # Move Left
             # drawTriangle()
@@ -536,19 +556,21 @@ class SimpleImposterViewer:
 
             # Middle sphere is an imposter            
             glTranslatef( 1.6,0.0,0);
-                         # Move Right
+            # Move Right
             glColor3f(0.2, 0.5, 0.8)
             self.renderSphereImposterImmediate(Sphere( [0, -0.2, 0], 1.1) )
 
             glColor3f(0.1, 0.7, 0.1)
             self.renderSphereImposterImmediate(Sphere( [-0.5, -1.2, 0], 0.8) )
 
-            sph1 = Sphere([0, 1.1, 0], 0.3)
-            sph2 = Sphere([1.2, 1.5, 0], 0.9)
+            sph1 = Sphere([0, 1.1, 0], 0.9)
+            sph2 = Sphere([1.2, 1.5, 0], 0.5)
             self.renderSphereImposterImmediate(sph1)
             self.renderSphereImposterImmediate(sph2)
             cone = ConeSegment(sph1, sph2)
             self.renderConeImposterImmediate(cone)
+            
+            # self.imposter_spheres.drawGL()
 
             # Right sphere is a standard mesh, shaded with GLSL
             glTranslatef( 1.6, 0.0, 0);             # Move Right
@@ -578,10 +600,21 @@ class SimpleImposterViewer:
             # If escape is pressed, kill everything.
             if args[0] == ESCAPE:
                 sys.exit()
+                pass
         
-        def show(self):
+        def show(self, files):
+            # Maybe read swc file from command line
+            if len(files) > 0:
+                self.swc_files = files
+            else:
+                self.swc_files = None
+
+            self.imposter_spheres = SphereSet()
+            self.imposter_spheres.append(Sphere([0, 2.1, 0], 0.9))
+            self.imposter_spheres.append(Sphere([1.2, 2.5, 0], 0.5))
+
             # pass arguments to init
-            glutInit(sys.argv)
+            glutInit()
         
             # Select type of Display mode:   
             #  Double buffer 
@@ -604,7 +637,7 @@ class SimpleImposterViewer:
             # if it weren't for the global declaration at the start of main.
             self.window = glutCreateWindow("SWC imposter demo")
         
-               # Register the drawing function with glut, BUT in Python land, at least using PyOpenGL, we need to
+            # Register the drawing function with glut, BUT in Python land, at least using PyOpenGL, we need to
             # set the function pointer and invoke a function to actually register the callback, otherwise it
             # would be very much like the C version of the code.    
             glutDisplayFunc(self.DrawGLScene)
@@ -629,8 +662,17 @@ class SimpleImposterViewer:
 
 # Print message to console, and kick off the main to get it rolling.
 if __name__ == "__main__":
-    print "Hit ESC key to quit."
-    v = SimpleImposterViewer()
-    v.show()
+    try:
+        ## your code, typically one function call
+        print "Hit ESC key to quit."
+        v = SimpleImposterViewer()
+        v.show(sys.argv[1:]) 
+    except:
+        print sys.exc_info()[0]
+        print traceback.format_exc()
+    finally:
+        print "Press Enter to continue ..." 
+        raw_input()
+
     
 
