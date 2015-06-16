@@ -221,7 +221,7 @@ class SphereSet(list):
         self.mode = "imposters"
 
     def drawGL(self):
-        shaders.glUseProgram(self.sphere_shader)
+        # shaders.glUseProgram(self.sphere_shader)
         for sphere in self:
             sphere.generateBoundingGeometryImmediate()
 
@@ -570,7 +570,11 @@ class SimpleImposterViewer:
             cone = ConeSegment(sph1, sph2)
             self.renderConeImposterImmediate(cone)
             
-            # self.imposter_spheres.drawGL()
+            shaders.glUseProgram(self.sphere_shader)
+            self.imposter_spheres.drawGL()
+            
+            shaders.glUseProgram(self.cone_shader)
+            self.imposter_cones.drawGL()
 
             # Right sphere is a standard mesh, shaded with GLSL
             glTranslatef( 1.6, 0.0, 0);             # Move Right
@@ -609,9 +613,14 @@ class SimpleImposterViewer:
             else:
                 self.swc_files = None
 
+            s1 = Sphere([0, 2.1, 0], 0.9)
+            s2 = Sphere([1.2, 2.5, 0], 0.5)
             self.imposter_spheres = SphereSet()
-            self.imposter_spheres.append(Sphere([0, 2.1, 0], 0.9))
-            self.imposter_spheres.append(Sphere([1.2, 2.5, 0], 0.5))
+            self.imposter_spheres.append(s1)
+            self.imposter_spheres.append(s2)
+            
+            self.imposter_cones = SphereSet()
+            self.imposter_cones.append(ConeSegment(s1, s2))            
 
             # pass arguments to init
             glutInit()
