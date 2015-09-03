@@ -9,23 +9,60 @@
  * license terms ( http://license.janelia.org/license/jfrc_copyright_1_1.html ).
  */
 
+
+// TODO - parameterize these lighting parameters
+const float specularCoefficient = 0.3; // range 0-1
+const float diffuseCoefficient = 1.0 - specularCoefficient; // range 0-1
+const float metallicCoefficient = 0.5; // range 0-1
+const float roughnessCoefficient = 0.5; // range 0-1, currently unused TODO
+
+// color patch using image based lighting, using only diffuse and reflection components, for now.
+vec3 image_based_lighting(
+        vec3 pos, // surface position, in camera frame
+        vec3 normal, // surface normal, in camera frame
+        vec3 diffuseColor, 
+        vec3 reflectColor,
+        sampler2D lightProbe)
+{
+    // Assume light probe has diffuse probe on left, reflection probe on right
+    const vec4 diffuseTcPos = vec4(0.25, 0.5, 0.245, -0.49); // center and radius of light probe image
+    const vec4 reflectTcPos = vec4(0.75, 0.5, 0.245, -0.49); // center and radius of light probe image
+
+    // convert normal vector to position in diffuse light probe texture
+    float radius = 0.50 * (-normal.z + 1.0);
+    vec2 direction = normalize(normal.xy);
+    vec2 diffuseTc = diffuseTcPos.xy + diffuseTcPos.zw * radius * direction;
+    vec3 iblDiffuse = diffuseCoefficient * texture(lightProbe, diffuseTc).rgb;
+
+    // convert position and normal to position in reflection light probe texture
+    vec3 view = pos;
+    vec3 r = normalize(view - 2.0 * dot(normal, view) * normal); // reflection vector
+    radius = 0.50 * (-r.z + 1.0);
+    direction = normalize(r.xy);
+    vec2 reflectTc = reflectTcPos.xy + reflectTcPos.zw * radius * direction;
+    vec3 iblReflect = 35 * specularCoefficient * texture(lightProbe, reflectTc).rgb;
+
+    return iblDiffuse * diffuseColor + iblReflect * reflectColor;
+}
+
+
 // Hard coded light system, just for testing.
 // Light parameters should be same ones in CPU host program, for comparison
-vec3 light_rig(vec4 pos, vec3 normal, vec3 surface_color) {
+vec3 light_rig(vec3 pos, vec3 normal, vec3 surface_color) {
     const vec3 ambient_light = vec3(0.2, 0.2, 0.2);
     const vec3 diffuse_light = vec3(0.8, 0.8, 0.8);
     const vec3 specular_light = vec3(0.8, 0.8, 0.8);
     const vec4 light_pos = vec4(-5, 3, 3, 0); 
     // const vec3 surface_color = vec3(1, 0.5, 1);
 
-    vec3 surfaceToLight = normalize(light_pos.xyz); //  - (pos / pos.w).xyz);
+    vec3 surfaceToLight = normalize(light_pos.xyz);
     
     float diffuseCoefficient = max(0.0, dot(normal, surfaceToLight));
     vec3 diffuse = diffuseCoefficient * surface_color * diffuse_light;
 
     vec3 ambient = ambient_light * surface_color;
     
-    vec3 surfaceToCamera = normalize(-pos.xyz); //also a unit vector    
+    vec3 surfaceToCamera = normalize(-pos); //also a unit vector    
     // Use Blinn-Phong specular model, to match fixed-function pipeline result (at least on nvidia)
     vec3 H = normalize(surfaceToLight + surfaceToCamera);
     float nDotH = max(0.0, dot(normal, H));
@@ -141,7 +178,7 @@ bool cone_imposter_frag(
 
     // illuminate the cone surface
     fragColor = vec4(
-        light_rig(vec4(s, 1), normal, surface_color),
+        light_rig(s, normal, surface_color),
         1);
 
     // Put computed cone surface Z depth into depth buffer
@@ -163,24 +200,22 @@ vec2 sphere_linear_coeffs(vec3 center, float radius, vec3 pos) {
 
 // Second phase of sphere imposter shading: Compute nonlinear coefficients
 // in fragment shader, including discriminant used to reject fragments.
-vec2 sphere_nonlinear_coeffs(vec3 pos, vec2 pc_c2) {
+vec2 sphere_nonlinear_coeffs(vec3 pos, float pc, float c2) {
     // set up quadratic formula for sphere surface ray casting
-    float b = pc_c2.x;
     float a2 = dot(pos, pos);
-    float c2 = pc_c2.y;
-    float discriminant = b*b - a2*c2;
+    float discriminant = pc*pc - a2*c2; // quadratic formula discriminant: b^2 - 4ac
     return vec2(a2, discriminant);
 }
 
 // Third and final phase of sphere imposter shading: Compute sphere
 // surface XYZ coordinates in fragment shader.
-vec3 sphere_surface_from_coeffs(vec3 pos, vec2 pc_c2, vec2 a2_d) {
+vec3 sphere_surface_from_coeffs(vec3 pos, float pc, vec2 a2_d) {
     float discriminant = a2_d.y; // Negative values should be discarded.
     float a2 = a2_d.x;
-    float b = pc_c2.x;
-    float left = b / a2;
-    float right = sqrt(discriminant) / a2;
-    float alpha1 = left - right; // near surface of sphere
+    float b = pc;
+    float left = b / a2; // left half of quadratic formula: -b/2a
+    float right = sqrt(discriminant) / a2; // (negative) right half of quadratic formula: sqrt(b^2-4ac)/2a
+    float alpha1 = left - right; // near/front surface of sphere
     // float alpha2 = left + right; // far/back surface of sphere
     return alpha1 * pos;
 }
