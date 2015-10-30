@@ -60,6 +60,7 @@ out float halfConeLength;
 out vec3 aHat;
 out vec3 imposterPos; // location of imposter bounding geometry, in camera frame
 out float normalScale;
+out float bViewAlongCone; // Is view angle less than taper angle?
 
 
 // forward declaration of methods defined in imposter_fns330.glsl
@@ -105,7 +106,7 @@ void emit_one_vertex(vec3 offset) {
 
 
 // sometimes you can see five of the six hull sides
-void cone_hull(mat3 frame2348, mat3 frame1567) {
+void near_cone_hull(mat3 frame2348, mat3 frame1567) {
     emit_one_vertex(frame1567*p6);
     emit_one_vertex(frame1567*p7);
     emit_one_vertex(frame1567*p5);
@@ -122,10 +123,35 @@ void cone_hull(mat3 frame2348, mat3 frame1567) {
     EndPrimitive();
 }
 
+// sometimes you can see five of the six hull sides
+void far_cone_hull(mat3 frame2348, mat3 frame1567) {
+    emit_one_vertex(frame2348*p8);
+    emit_one_vertex(frame2348*p2);
+    emit_one_vertex(frame2348*p4);
+    emit_one_vertex(frame2348*p3);
+    emit_one_vertex(frame1567*p1);
+    emit_one_vertex(frame2348*p2);
+    emit_one_vertex(frame1567*p7);
+    emit_one_vertex(frame2348*p8);
+    emit_one_vertex(frame1567*p6);
+    emit_one_vertex(frame2348*p4);
+    emit_one_vertex(frame1567*p5);
+    emit_one_vertex(frame1567*p1);
+
+    EndPrimitive();
+}
 
 void main() {
-    vec3 c1 = gl_PositionIn[0].xyz/gl_PositionIn[0].w; // center of smaller cone end
-    vec3 c2 = gl_PositionIn[1].xyz/gl_PositionIn[1].w; // center of larger cone end
+    // On Mac GL_EXT_geometry_shader4 is unrecognized, so must use later geometry shader syntax
+#ifdef GL_EXT_geometry_shader4
+    vec4 posIn0 = gl_PositionIn[0]; // extension syntax
+    vec4 posIn1 = gl_PositionIn[1]; // extension syntax
+#else
+    vec4 posIn0 = gl_in[0].gl_Position; // modern geometry shader syntax
+    vec4 posIn1 = gl_in[1].gl_Position; // modern geometry shader syntax
+#endif
+    vec3 c1 = posIn0.xyz/posIn0.w; // center of smaller cone end
+    vec3 c2 = posIn1.xyz/posIn1.w; // center of larger cone end
     float r1 = geomRadius[0];
     float r2 = geomRadius[1];
 
@@ -135,7 +161,7 @@ void main() {
     // allow better dynamic changes to the radii.
     // This is a subtle effect that mainly affects cones 
     // connecting spheres of very different radii.
-    bool postModifyRadii = true;
+    const bool postModifyRadii = true;
     if (postModifyRadii) {
         // Modify locations and radii, so cone is flush with adjacent spheres
         vec3 cs1 = c1; // center of first sphere
@@ -176,6 +202,17 @@ void main() {
     aHat = -cone_spine/cone_length;
     normalScale = 1.0 / sqrt(1.0 + taper*taper);
 
+    // Decide whether view direction is sort of "along" cone axis, or 
+    // sort of perpendicular to cone axis. Each case has different ray 
+    // casting consequences.
+    bViewAlongCone = 0; // default to false
+    if (abs(taper) > 1e-4) { // not for cylinders...
+        float cos_cone_angle = abs(cos(atan(r2 - r1, cone_length)));
+        vec3 cone_tip = center + aHat * fragRadius/taper;
+        float cos_view_angle = abs(dot(normalize(cone_tip), aHat));
+        if (cos_view_angle > cos_cone_angle) bViewAlongCone = 1; // true
+    }
+
     // Compute local coordinate system of cone bounding box
     // Put "X" axis of bounding geometry along cone axis
     vec3 x = cone_spine / cone_length;
@@ -213,5 +250,5 @@ void main() {
             y * r2, 
             z * r2);
 
-    cone_hull(frame2348, frame1567); // near cone hull
+    far_cone_hull(frame2348, frame1567); // near cone hull
 }

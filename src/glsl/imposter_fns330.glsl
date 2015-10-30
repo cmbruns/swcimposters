@@ -40,7 +40,7 @@
  */
 
 // TODO - parameterize these lighting parameters
-const float specularCoefficient = 0.3; // range 0-1
+const float specularCoefficient = 0.1; // range 0-1
 const float diffuseCoefficient = 1.0 - specularCoefficient; // range 0-1
 const float metallicCoefficient = 0.5; // range 0-1
 const float roughnessCoefficient = 0.5; // range 0-1, currently unused TODO
@@ -59,7 +59,9 @@ vec3 image_based_lighting(
 
     // convert normal vector to position in diffuse light probe texture
     float radius = 0.50 * (-normal.z + 1.0);
-    vec2 direction = normalize(normal.xy);
+    vec2 direction = normal.xy;
+    if (dot(direction, direction) > 0)
+        direction = normalize(direction);
     vec2 diffuseTc = diffuseTcPos.xy + diffuseTcPos.zw * radius * direction;
     vec3 iblDiffuse = diffuseCoefficient * texture(lightProbe, diffuseTc).rgb;
 
@@ -67,7 +69,9 @@ vec3 image_based_lighting(
     vec3 view = pos;
     vec3 r = normalize(view - 2.0 * dot(normal, view) * normal); // reflection vector
     radius = 0.50 * (-r.z + 1.0);
-    direction = normalize(r.xy);
+    direction = normal.xy;
+    if (dot(direction, direction) > 0)
+        direction = normalize(direction);
     vec2 reflectTc = reflectTcPos.xy + reflectTcPos.zw * radius * direction;
     vec3 iblReflect = 35 * specularCoefficient * texture(lightProbe, reflectTc).rgb;
 
@@ -117,6 +121,15 @@ float fragDepthFromEyeXyz(vec3 eyeXyz, mat4 projectionMatrix) {
 }
 
 
+float zNearFromProjection(mat4 projectionMatrix) {
+    float m22 = projectionMatrix[2][2];
+    float m32 = projectionMatrix[3][2];
+    float near = (2.0f*m32)/(2.0*m22-2.0);
+    // float far = ((m22-1.0)*near)/(m22+1.0);
+    return -near;
+}
+
+
 // CONES
 // Methods for ray casting cone geometry from imposter geometry
 
@@ -158,12 +171,15 @@ void cone_nonlinear_coeffs(in float tAP, in float qe_c, in float qe_half_b, in v
 
 // Third and final phase of sphere imposter shading: Compute sphere
 // surface XYZ coordinates in fragment shader.
-vec3 cone_surface_from_coeffs(in vec3 pos, in float qe_half_b, in float qe_half_a, in float discriminant)
+vec3 cone_surface_from_coeffs(in vec3 pos, in float qe_half_b, in float qe_half_a, in float discriminant,
+        out vec3 back_surface)
 {
     float left = -qe_half_b / qe_half_a;
     float right = sqrt(discriminant) / qe_half_a;
-    float alpha1 = left - right; // near surface of sphere
-    // float alpha2 = left + right; // far/back surface of sphere
+    float alpha1 = left - right; // near surface of cone
+    float alpha2 = left + right; // far/back surface of cone
+    back_surface = alpha2 * pos;
+    // TODO - case when looking down cone axis
     vec3 surface_pos = alpha1 * pos;
     return surface_pos;
 }
@@ -194,7 +210,8 @@ bool cone_imposter_frag(
         return false; // Point does not intersect cone
 
     // Compute projected surface of cone
-    vec3 s = cone_surface_from_coeffs(pos, qe_half_b, qe_half_a, discriminant);
+    vec3 back_surface;
+    vec3 s = cone_surface_from_coeffs(pos, qe_half_b, qe_half_a, discriminant, back_surface);
     vec3 cs = s - center;
     
     // Truncate cone geometry to prescribed ends
@@ -238,14 +255,15 @@ vec2 sphere_nonlinear_coeffs(vec3 pos, float pc, float c2) {
 
 // Third and final phase of sphere imposter shading: Compute sphere
 // surface XYZ coordinates in fragment shader.
-vec3 sphere_surface_from_coeffs(vec3 pos, float pc, vec2 a2_d) {
+vec3 sphere_surface_from_coeffs(vec3 pos, float pc, vec2 a2_d, out vec3 back_surface) {
     float discriminant = a2_d.y; // Negative values should be discarded.
     float a2 = a2_d.x;
     float b = pc;
     float left = b / a2; // left half of quadratic formula: -b/2a
     float right = sqrt(discriminant) / a2; // (negative) right half of quadratic formula: sqrt(b^2-4ac)/2a
     float alpha1 = left - right; // near/front surface of sphere
-    // float alpha2 = left + right; // far/back surface of sphere
+    float alpha2 = left + right; // far/back surface of sphere
+    back_surface = alpha2 * pos;
     return alpha1 * pos;
 }
 

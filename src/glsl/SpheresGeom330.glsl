@@ -1,5 +1,5 @@
 #version 330
-#extension GL_EXT_geometry_shader : enable
+#extension GL_EXT_geometry_shader4 : enable
 
 /**
  * Geometry shader for sphere imposters.
@@ -42,7 +42,7 @@ uniform mat4 projectionMatrix = mat4(1);
 layout(points) in; // input vertices are sphere centers
 // Create viewer-facing half-cube imposter geometry 
 // layout(triangle_strip, max_vertices=10) out;
-layout(triangle_strip, max_vertices=6) out; // only six vertices needed for "mid-hull" approach
+layout(triangle_strip, max_vertices=10) out; // only six vertices needed for "mid-hull" approach
 
 
 in float geomRadius[]; // sphere radius as vertex attribute
@@ -175,13 +175,19 @@ void mid_hull() {
 
 
 void main() {
-    center = gl_PositionIn[0].xyz/gl_PositionIn[0].w; // sphere center is constant for all vertices
+    // On Mac GL_EXT_geometry_shader4 is unrecognized, so must use later geometry shader syntax
+#ifdef GL_EXT_geometry_shader4
+    vec4 posIn = gl_PositionIn[0]; // extension syntax
+#else
+    vec4 posIn = gl_in[0].gl_Position; // modern geometry shader syntax
+#endif
+    center = posIn.xyz/posIn.w; // sphere center is constant for all vertices
     fragRadius = geomRadius[0]; // sphere radius is constant for all vertices
     c2 = dot(center, center) - fragRadius*fragRadius; // 2*c coefficient is constant for all vertices
 
     // Choice of imposter hull strategies below
     // NOTE: modify the above "layout(..., max_vertices=...) out;" statement to match your chosen hull strategy
     // near_hull(); // imposter in front of sphere (10 vertices)
-    // far_hull(); // imposter behind sphere (10 vertices)
-    mid_hull(); // simpler geometry, imposter intersects sphere (6 vertices)
+    far_hull(); // imposter behind sphere (10 vertices)
+    // mid_hull(); // simpler geometry, imposter intersects sphere (6 vertices)
  }
